@@ -15,8 +15,10 @@ class Signal:
         self.sample_frequency = self._calc_sample_frequency()
         self.t_unit, self.d_unit = t_unit, d_unit
 
+        # These are initially None. Will be calculated on first call to the getter and cached
         self._fft_frequency, self._fft_magnitude = None, None
         self._amplitude_envelope, self._instant_phase = None, None
+        self._peak_time, self._peak_amplitude = None, None
 
     def _calc_sample_frequency(self):
         avg_sample_interval = np.mean(self.time[1:] - self.time[:-1])
@@ -68,6 +70,22 @@ class Signal:
             self._amplitude_envelope, self._instant_phase, _ = self.get_signal_envelope()
         return self._instant_phase
 
+    def _get_envelope_peaks(self):
+        peak_idx, _ = spsignal.find_peaks(self.amplitude_envelope)
+        return self.time[peak_idx], self.data[peak_idx]
+
+    @property
+    def peak_time(self):
+        if self._peak_time is None:
+            self._peak_time, self._peak_amplitude = self._get_envelope_peaks()
+        return self._peak_time
+
+    @property
+    def peak_amplitude(self):
+        if self._peak_amplitude is None:
+            self._peak_time, self._peak_amplitude = self._get_envelope_peaks()
+        return self._peak_amplitude
+
     def get_trimmed_signal(self, start_time, end_time):
         try:
             trim_index_1 = np.argwhere(self.time <= start_time)[-1][0]
@@ -84,6 +102,7 @@ class Signal:
         axt.set_ylabel("Amplitude")
         axt.plot(self.time, self.data, label='Signal')
         axt.plot(self.time, self.amplitude_envelope, label='Envelope')
+        axt.plot([self.peak_time, self.peak_time], [-self.peak_amplitude, self.peak_amplitude], '--', color='red')
         axt.set(xlabel=f'Time ({self.t_unit})', ylabel=f'Signal ({self.d_unit})')
         if tlim is not None:
             axt.xlim(tlim)
@@ -100,29 +119,6 @@ class Signal:
         filtered_signal = spsignal.sosfilt(bandpass_filter, signal.data)
         return Signal(signal.time, filtered_signal, signal.t_unit, signal.d_unit)
 
-    @staticmethod
-    def average_signals(signals: Iterable):
-        min_time, max_time = min([sig.time[0] for sig in signals]), max([sig.time[-1] for sig in signals])
-        common_time = np.linspace(min_time, max_time, int(signals[0].time.size))
-
-        # Check nr of channels by checking dimensions of first signal -1 for time axis
-        channels = signals[0].shape[1] - 1
-        averaged_channels = []
-        for j in range(channels):
-            interpolated_signals = []
-            for sig in signals:
-                time = sig[:, 0]
-                voltage = sig[:, 1 + j]
-
-                # Interpolate the signal to the common time points, and store the interpolated points
-                interp_func = interpolate.interp1d(time, voltage, kind='linear', bounds_error=False,
-                                                   fill_value="extrapolate")
-                interpolated_voltage = interp_func(common_time)
-                interpolated_signals.append(interpolated_voltage)
-
-            avg_signal = np.mean(np.stack(interpolated_signals, axis=0), axis=0)
-            averaged_channels.append(np.stack((common_time, avg_signal)).T)
-        return averaged_channels
 
 
 if __name__ == '__main__':

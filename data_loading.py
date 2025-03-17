@@ -31,7 +31,6 @@ def load_signals_labview(path):
     # The channels are kept separated for averaging, to ensure different channels are not mixed
     # If there are multiple measurements, average. Otherwise, unpack to [ch1, ch2, ch3,...]
     # Averaging will result in the same data structure of [avg_ch1, avg_ch2, avg_ch3,...]
-    print(signals)
     if len(signals) > 1:
         signals = average_signals(signals)
     else:
