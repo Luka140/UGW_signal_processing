@@ -70,7 +70,7 @@ class Signal:
 
     def get_trimmed_signal(self, start_time, end_time):
         try:
-            trim_index_1 = np.argwhere(self.time < start_time)[-1][0]
+            trim_index_1 = np.argwhere(self.time <= start_time)[-1][0]
         except IndexError:
             raise IndexError(f"Trim index out of range for start_time. Got {start_time}, min: {self.time[0]}")
         try:
