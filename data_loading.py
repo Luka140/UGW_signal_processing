@@ -4,6 +4,7 @@ import numpy as np
 import pathlib
 from typing import Iterable
 from scipy.interpolate import interpolate
+from Signal import Signal
 
 def load_signals_labview(path):
     unit_row = 0
@@ -20,9 +21,13 @@ def load_signals_labview(path):
         csv_data.drop(unit_row, inplace=True)
         signals.append(csv_data.to_numpy(dtype=float))
     print(f"warning: Units not considered currently.\nUnits: {prev_units}")
-    return signals, prev_units
+    if len(signals) > 1:
+        signals = average_signals(signals)
 
-def average_signals(signals: Iterable[np.ndarray]) -> list[np.ndarray]:
+    signals = [Signal(sig[:,0], sig[:,1], t_unit=list(prev_units)[0]) for sig in signals]
+    return signals
+
+def average_signals(signals: Iterable[Signal]) -> list[np.ndarray]:
     min_time, max_time = min([sig[0, 0] for sig in signals]), max([sig[-1, 0] for sig in signals])
     common_time = np.linspace(min_time, max_time, int(signals[0].shape[0]))
 
