@@ -15,7 +15,7 @@ class Measurement:
         self.dispersion_curves = dispersion_curves
 
     def compensate_dispersion(self):
-        ...
+        ... # TODO 
         
 
 
@@ -32,12 +32,11 @@ if __name__ == '__main__':
         mode_freq_headers = curves.columns[0::columns_per_mode]
         mode_phase_vel_headers = curves.columns[1::columns_per_mode]
         # TODO make this work for anisotropic 
-        # TODO it seems like these are ordered by velocity, not frequency. Sort them first 
         for i, mode_freq in enumerate(mode_freq_headers):
-            print(mode_freq)
-            freq = curves[mode_freq].dropna()
-            print(((freq.to_numpy()[1:]-freq.to_numpy()[:-1])<0).any())  
-            spline = interpolate.CubicSpline(freq, curves[mode_phase_vel_headers[i]].dropna(), extrapolate=False)
+            freq_vel = curves[[mode_freq, mode_phase_vel_headers[i]]].dropna()
+            freq_vel = freq_vel.sort_values(mode_freq)
+
+            spline = interpolate.CubicSpline(freq_vel[mode_freq], freq_vel[mode_phase_vel_headers[i]], extrapolate=False)
             modes.append(spline)
         
     data_dir_ab = pathlib.Path(__file__).parent / 'data' / 'abaqus_test_steel'
