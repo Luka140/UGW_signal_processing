@@ -4,7 +4,7 @@ import numpy as np
 import pathlib
 from typing import Iterable
 from scipy.interpolate import interpolate
-from signal import Signal
+from signal_obj import Signal
 
 def load_signals_labview(path):
     unit_row = 0

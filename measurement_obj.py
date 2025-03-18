@@ -1,4 +1,4 @@
-from signal import Signal 
+from signal_obj import Signal 
 
 
 

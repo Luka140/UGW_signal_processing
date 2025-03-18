@@ -1,5 +1,5 @@
 import pathlib
-from signal import Signal
+from signal_obj import Signal
 from data_loading import load_signals_labview, load_signals_abaqus
 
 
