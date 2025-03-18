@@ -12,13 +12,13 @@ if __name__ == "__main__":
     # signal_list = load_signals_abaqus(data_dir_ab)
 
     received_signal = signal_list[1]
-    received_signal.plot()
+    # received_signal.plot()
 
     trimmed_signal = received_signal.get_trimmed_signal(0, 0.2)
     trimmed_signal.plot()
 
-    bandpassed_signal = Signal.bandpass(trimmed_signal, 0.8e3, 1.2e3)
-    bandpassed_signal.plot()
+    # bandpassed_signal = Signal.bandpass(trimmed_signal, 0.8e3, 1.2e3)
+    # bandpassed_signal.plot()
 
     # TODO find peaks -> flight time
     # TODO add windowing

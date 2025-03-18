@@ -70,9 +70,14 @@ class Signal:
             self._amplitude_envelope, self._instant_phase, _ = self.get_signal_envelope()
         return self._instant_phase
 
-    def _get_envelope_peaks(self):
-        peak_idx, _ = spsignal.find_peaks(self.amplitude_envelope)
-        return self.time[peak_idx], self.data[peak_idx]
+    def _get_envelope_peaks(self, n=5):
+        peak_idx, peak_properties = spsignal.find_peaks(self.amplitude_envelope)
+        prominence, *_ = spsignal.peak_prominences(self.amplitude_envelope, peak_idx)
+        
+        # These are the idx in the prominence/peak array, not in the data array! [0] is the first peak idx, not data[0]
+        n_most_prominent_peak_idx = np.argsort(prominence)[-n:][::-1] # Sorted from most prominent to least prominent
+
+        return self.time[peak_idx[n_most_prominent_peak_idx]], self.data[peak_idx[n_most_prominent_peak_idx]]
 
     @property
     def peak_time(self):
@@ -85,6 +90,9 @@ class Signal:
         if self._peak_amplitude is None:
             self._peak_time, self._peak_amplitude = self._get_envelope_peaks()
         return self._peak_amplitude
+    
+    def get_stfft(self):
+        window = spsignal.windows.hann(len(self.data))
 
     def get_trimmed_signal(self, start_time, end_time):
         try:
@@ -102,7 +110,7 @@ class Signal:
         axt.set_ylabel("Amplitude")
         axt.plot(self.time, self.data, label='Signal')
         axt.plot(self.time, self.amplitude_envelope, label='Envelope')
-        axt.plot([self.peak_time, self.peak_time], [-self.peak_amplitude, self.peak_amplitude], '--', color='red')
+        axt.plot([self.peak_time, self.peak_time], [-self.peak_amplitude, self.peak_amplitude], '--', color='red', label='peaks')
         axt.set(xlabel=f'Time ({self.t_unit})', ylabel=f'Signal ({self.d_unit})')
         if tlim is not None:
             axt.xlim(tlim)
