@@ -8,16 +8,16 @@ class Signal:
 
     def __init__(self, time: np.ndarray, data: np.ndarray, t_unit=None, d_unit=None):
 
-        self.data = data
-        self.time = time
+        self.data = data.flatten()
+        self.time = time.flatten()
         self.t_unit, self.d_unit = t_unit, d_unit
         self.sample_frequency = self._calc_sample_frequency()
 
         # These are initially None. Will be calculated on first call to the getter and cached
         # These are accessed through the corresponding property (same name without leading underscore)
-        self._fft_frequency, self._fft_magnitude = None, None
-        self._amplitude_envelope, self._instant_phase = None, None
-        self._peak_time, self._peak_amplitude = None, None
+        self._fft_output, self._fft_frequency, self._fft_magnitude  = None, None, None 
+        self._amplitude_envelope, self._instant_phase               = None, None
+        self._peak_time, self._peak_amplitude                       = None, None
 
         self._peak_n            = 5         # Number of peaks to find    
         self._recalc_peak_flag  = False     # Signals that _peak_n changed -> recaulculate peaks
@@ -39,19 +39,26 @@ class Signal:
             mask = fft_freq >= 0
             fft_freq = fft_freq[mask]
             fft_magnitude = fft_magnitude[mask]
-        return fft_freq, fft_magnitude
+        return fft_output, fft_freq, fft_magnitude
 
     @property
     def fft_frequency(self):
         if self._fft_frequency is None:
-            self._fft_frequency, self._fft_magnitude = self.get_fft()
+            self._fft_output, self._fft_frequency, self._fft_magnitude = self.get_fft()
         return self._fft_frequency
 
     @property
     def fft_magnitude(self):
         if self._fft_magnitude is None:
-            self._fft_frequency, self._fft_magnitude = self.get_fft()
+            self._fft_output, self._fft_frequency, self._fft_magnitude = self.get_fft()
         return self._fft_magnitude
+
+    @property
+    def fft_output(self):
+        if self._fft_output is None:
+            self._fft_output, self._fft_frequency, self._fft_magnitude = self.get_fft()
+        return self._fft_output
+
 
     def _get_signal_envelope(self):
         analytic_signal = spsignal.hilbert(self.data)
@@ -154,6 +161,8 @@ class Signal:
         axt.plot(self.time, self.data, label='Signal')
         axt.plot(self.time, self.amplitude_envelope, label='Envelope')
         axt.plot([self.peak_time, self.peak_time], [-self.peak_amplitude, self.peak_amplitude], '--', color='red')
+        for (time, amplitude) in zip(self.peak_time, self.peak_amplitude):
+            axt.text(time, -amplitude*1.1, s=f"{time:.2e}")
         axt.set(xlabel=f'Time ({self.t_unit})', ylabel=f'Signal ({self.d_unit})')
         if tlim is not None:
             axt.xlim(tlim)

@@ -28,6 +28,9 @@ if __name__ == "__main__":
     bandpassed_signal = trimmed_signal.bandpass(40e3, 60e3)
     bandpassed_signal.plot()
 
+    bandpassed_signal.set_max_peak_number(1)
+    bandpassed_signal.plot()
+
     # TODO Measurement class
     # TODO dispersion compensation? 
     # TODO trim by windowing

@@ -39,6 +39,14 @@ def load_signals_labview(path):
     return signals
 
 def average_signals(signals: list[list[Signal]]) -> list[Signal]:
+    """_summary_
+
+    Args:
+        signals (list[list[Signal]]): A nested list of Signal objects. 
+            The data structure should be: [measurement1[ch1, ch2, ...], measurement2[...], ...]
+    Returns:
+        list[Signal]: A list of averaged Signals, one for each channel
+    """
     averaged_channels = []
     channels = len(signals[0])
     for ch in range(channels):
@@ -66,6 +74,38 @@ def load_signals_abaqus(path, t_unit=None, d_unit=None):
 
     return signals
 
+def load_data_SINTEG(directory, sample_frequency=1e6):
+    """Load 4 channel signals from the SINTEG acquisition setup.
+
+    Args:
+        directory (_type_): The directory containing signals to be averaged, representing a single measurement.
+        sample_frequency (_type_, optional): The sample frequency. Defaults to 1e6 (1 MHz).
+
+    Returns:
+        _type_: _description_
+    """
+    sample_spacing = 1 / sample_frequency
+    signals = []
+    for path in directory.glob("*.txt"):
+        data = np.loadtxt(path)
+        measurement_channels = []
+        samples = data.shape[0]
+        time = np.arange(0, samples * sample_spacing, sample_spacing)
+
+        for i in range(data.shape[1]):
+            measurement_channels.append(Signal(time, data[:,i], t_unit='s', d_unit='micro_v'))
+        
+        signals.append(measurement_channels)
+
+    return average_signals(signals)
+
+
+
+
 if __name__ == "__main__":
-    data_dir = pathlib.Path(__file__).parent / 'data' / 'abaqus_test_steel'
-    signal_list = load_signals_abaqus(data_dir)
+    # data_dir = pathlib.Path(__file__).parent / 'data' / 'abaqus_test_steel'
+    # signal_list = load_signals_abaqus(data_dir)
+
+    data_sinteg = pathlib.Path(__file__).parent / "data" / "GFRP_test_plate_SINTEG" / "measurements_0"
+    avg_signals = load_data_SINTEG(data_sinteg)
+    [sig.bandpass(30e3, 90e3).plot() for sig in avg_signals]
