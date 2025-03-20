@@ -163,7 +163,7 @@ class Signal:
             plt.show()
 
         return Sx2
-ugodne vecer
+
     def bandpass(self, lowcut: float, highcut: float, order: int=2):
         bandpass_filter = spsignal.butter(order, Wn=(lowcut, highcut), btype='bandpass', output='sos', fs=self.sample_frequency)
         filtered_signal = spsignal.sosfilt(bandpass_filter, self.data)

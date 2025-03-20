@@ -34,7 +34,7 @@ class Measurement:
             
         # phase_shift = -2 * np.pi * frequencies * d / vp
 
-        
+# TODO actually maybe making transducer objects makes more sense        
 
 
 if __name__ == '__main__':
