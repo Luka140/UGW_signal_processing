@@ -57,7 +57,7 @@ if __name__ == '__main__':
             spline = interpolate.CubicSpline(freq_vel[mode_freq], freq_vel[mode_phase_vel_headers[i]], extrapolate=False)
             modes.append(spline)
         
-    data_dir_ab = pathlib.Path(__file__).parent / 'data' / 'abaqus_test_steel'
+    data_dir_ab = pathlib.Path(__file__).parent / 'data' / 'measurement_data'/ 'abaqus_test_steel'
     sig = load_signals_abaqus(data_dir_ab)[0]
     
     Measurement((0,0), (0.200,0), sig, modes)

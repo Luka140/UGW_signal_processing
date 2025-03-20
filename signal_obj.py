@@ -163,7 +163,7 @@ class Signal:
             plt.show()
 
         return Sx2
-
+ugodne vecer
     def bandpass(self, lowcut: float, highcut: float, order: int=2):
         bandpass_filter = spsignal.butter(order, Wn=(lowcut, highcut), btype='bandpass', output='sos', fs=self.sample_frequency)
         filtered_signal = spsignal.sosfilt(bandpass_filter, self.data)
@@ -198,7 +198,7 @@ class Signal:
     @staticmethod
     def _plot_helper(signal: "Signal", axt, axf, tlim=None, label=""):
         axt.set_ylabel("Amplitude")
-        axt.plot(signal.time, signal.data, label=f'{label} Signal')
+        axt.plot(signal.time, signal.data, label=f'{label} Signal', alpha=0.7)
         axt.plot(signal.time, signal.amplitude_envelope, label=f'{label} Envelope')
         axt.plot([signal.peak_time, signal.peak_time], [-signal.peak_amplitude, signal.peak_amplitude], '--', color='red')
         for (time, amplitude) in zip(signal.peak_time, signal.peak_amplitude):
@@ -238,12 +238,11 @@ class Signal:
             axtime, axfrequency = self._plot_helper(self, axtime, axfrequency, tlim, label=f"Sig{0}")
             axtime, axfrequency = self._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Sig{i}")
 
-            plt.show()       
 
 
             fig2 = plt.figure()
             ax = fig2.add_axes(111)
-            correlation = spsignal.correlate(self.data, scaled_signal.data, mode="full")
+            correlation = spsignal.correlate(self.amplitude_envelope, scaled_signal.amplitude_envelope, mode="full")
             lags = spsignal.correlation_lags(self.data.size, scaled_signal.data.size, mode="full")
             ax.plot(lags, correlation)
             plt.show()

@@ -169,7 +169,7 @@ if __name__ == "__main__":
     # data_dir = pathlib.Path(__file__).parent / 'data' / 'abaqus_test_steel'
     # signal_list = load_signals_abaqus(data_dir)
 
-    data_sinteg = pathlib.Path(__file__).parent / "data" / "GFRP_test_plate_SINTEG" / "measurements_0"
+    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "measurements_0"
     avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={31}, plot_outliers=True)
     # [sig.plot() for sig in avg_signals]
     # [sig.zero_average_signal().bandpass(30e3, 90e3).plot() for sig in avg_signals]
