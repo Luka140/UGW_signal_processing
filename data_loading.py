@@ -154,9 +154,8 @@ def load_signals_SINTEG(directory, sample_frequency=1e6, skip_idx={}, plot_outli
 
         for i in range(data.shape[1]):
             measurement_channels.append(Signal(time, data[:,i], t_unit='s', d_unit='micro_v'))
-        
+        # [signal.plot() for signal in measurement_channels]
         signals.append(measurement_channels)
-
     return average_signals(signals, plot_outliers=plot_outliers)
 
 
@@ -172,5 +171,10 @@ if __name__ == "__main__":
 
     data_sinteg = pathlib.Path(__file__).parent / "data" / "GFRP_test_plate_SINTEG" / "measurements_0"
     avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={31}, plot_outliers=True)
-    # TODO CHECK FOR OUTLIERS IN THE DATASET!
-    [sig.bandpass(30e3, 90e3).plot() for sig in avg_signals]
+    # [sig.plot() for sig in avg_signals]
+    # [sig.bandpass(30e3, 90e3).plot() for sig in avg_signals]
+    avg_signals[0].plot()
+    avg_signals[0].zero_average_signal().plot()
+    avg_signals[0].bandpass(30e3, 90e3).plot()
+    avg_signals[0].zero_average_signal().bandpass(30e3, 90e3).plot()
+

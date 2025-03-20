@@ -16,6 +16,7 @@ class Signal:
         # These are initially None. Will be calculated on first call to the getter and cached
         # These are accessed through the corresponding property (same name without leading underscore)
         self._fft_output, self._fft_frequency, self._fft_magnitude  = None, None, None 
+        self._fft_start_index                                       = None
         self._amplitude_envelope, self._instant_phase               = None, None
         self._peak_time, self._peak_amplitude                       = None, None
 
@@ -28,35 +29,54 @@ class Signal:
         return sample_frequency
 
     def get_fft(self, positive_half: bool = True):
-        signal_samples = len(self.data)  # Number of data points
         avg_sample_interval = 1 / self.sample_frequency
 
-        fft_output = fft.fft(self.data)
+        # -------- Initial
+        # signal_samples = len(self.data)  # Number of data points
+        # fft_output = fft.fft(self.data)
+        # fft_magnitude = np.abs(fft_output)  # Magnitude of the FFT
+        # fft_freq = fft.fftfreq(signal_samples, avg_sample_interval)  # Frequency axis
+        # --------
+
+        # -------- Clip off start
+        relative_threshold = 0.02
+        fft_start_index = np.where(np.abs(self.data - np.mean(self.data)) > 
+                                   np.max(np.abs(self.data - np.mean(self.data))) * relative_threshold)[0][0]
+        fft_output = fft.fft(self.data[fft_start_index:])
+        clipped_samples = len(self.data[fft_start_index:])
+
         fft_magnitude = np.abs(fft_output)  # Magnitude of the FFT
-        fft_freq = fft.fftfreq(signal_samples, avg_sample_interval)  # Frequency axis
+        fft_freq = fft.fftfreq(clipped_samples, avg_sample_interval)
+        # --------
 
         if positive_half:
             mask = fft_freq >= 0
             fft_freq = fft_freq[mask]
             fft_magnitude = fft_magnitude[mask]
-        return fft_output, fft_freq, fft_magnitude
+        return fft_output, fft_freq, fft_magnitude, fft_start_index
 
     @property
     def fft_frequency(self):
         if self._fft_frequency is None:
-            self._fft_output, self._fft_frequency, self._fft_magnitude = self.get_fft()
+            self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
         return self._fft_frequency
 
     @property
     def fft_magnitude(self):
         if self._fft_magnitude is None:
-            self._fft_output, self._fft_frequency, self._fft_magnitude = self.get_fft()
+            self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
         return self._fft_magnitude
+    
+    @property
+    def fft_start_index(self):
+        if self._fft_output is None:
+            self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
+        return self._fft_start_index
 
     @property
     def fft_output(self):
         if self._fft_output is None:
-            self._fft_output, self._fft_frequency, self._fft_magnitude = self.get_fft()
+            self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
         return self._fft_output
 
 
@@ -163,13 +183,16 @@ class Signal:
         axt.plot([self.peak_time, self.peak_time], [-self.peak_amplitude, self.peak_amplitude], '--', color='red')
         for (time, amplitude) in zip(self.peak_time, self.peak_amplitude):
             axt.text(time, -amplitude*1.1, s=f"{time:.2e}")
+        
+        axt.plot([self.time[self.fft_start_index], self.time[self.fft_start_index]], 
+                 [-np.max(self.peak_amplitude), np.max(self.peak_amplitude)], '-.', color='black', label='FFT start time')
         axt.set(xlabel=f'Time ({self.t_unit})', ylabel=f'Signal ({self.d_unit})')
         if tlim is not None:
             axt.xlim(tlim)
         axt.legend()
 
         axf.set(xlabel=f"Frequency", ylabel="Magnitude")
-        axf.plot(self.fft_frequency, self.fft_magnitude, label='FFT')
+        axf.plot(self.fft_frequency, self.fft_magnitude, label='FFT', marker='.')
 
         plt.show()
 
@@ -177,6 +200,9 @@ class Signal:
         bandpass_filter = spsignal.butter(order, Wn=(lowcut, highcut), btype='bandpass', output='sos', fs=self.sample_frequency)
         filtered_signal = spsignal.sosfilt(bandpass_filter, self.data)
         return Signal(self.time, filtered_signal, self.t_unit, self.d_unit)
+    
+    def zero_average_signal(self):
+        return Signal(self.time, self.data - np.mean(self.data), self.t_unit, self.d_unit)
 
     def to_array(self):
         """
