@@ -178,6 +178,12 @@ class Signal:
         filtered_signal = spsignal.sosfilt(bandpass_filter, self.data)
         return Signal(self.time, filtered_signal, self.t_unit, self.d_unit)
 
+    def to_array(self):
+        """
+        Returns a Numpy array representation of the signal.
+        Column 0 is time, column 1 is data [[t1, d1], [t2, d2], ...]
+        """
+        return np.array([self.time, self.data]).T
 
 
 if __name__ == '__main__':
