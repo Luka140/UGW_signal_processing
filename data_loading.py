@@ -172,9 +172,15 @@ if __name__ == "__main__":
     data_sinteg = pathlib.Path(__file__).parent / "data" / "GFRP_test_plate_SINTEG" / "measurements_0"
     avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={31}, plot_outliers=True)
     # [sig.plot() for sig in avg_signals]
-    # [sig.bandpass(30e3, 90e3).plot() for sig in avg_signals]
-    avg_signals[0].plot()
-    avg_signals[0].zero_average_signal().plot()
-    avg_signals[0].bandpass(30e3, 90e3).plot()
-    avg_signals[0].zero_average_signal().bandpass(30e3, 90e3).plot()
+    # [sig.zero_average_signal().bandpass(30e3, 90e3).plot() for sig in avg_signals]
+
+    ch4_signal = avg_signals[1].zero_average_signal().bandpass(30e3, 90e3)
+    ch1_signal = avg_signals[2].zero_average_signal().bandpass(30e3, 90e3)
+    ch4_signal.compare_other_signal(ch1_signal)
+
+
+    # avg_signals[0].plot()
+    # avg_signals[0].zero_average_signal().plot()
+    # avg_signals[0].bandpass(30e3, 90e3).plot()
+    # avg_signals[0].zero_average_signal().bandpass(30e3, 90e3).plot()
 

@@ -2,7 +2,7 @@ import numpy as np
 import scipy.fft as fft
 import scipy.signal as spsignal
 import matplotlib.pyplot as plt
-
+from typing import Iterable, Union, List
 
 class Signal:
 
@@ -164,38 +164,6 @@ class Signal:
 
         return Sx2
 
-    def get_trimmed_signal(self, start_time, end_time):
-        try:
-            trim_index_1 = np.argwhere(self.time <= start_time)[-1][0]
-        except IndexError:
-            raise IndexError(f"Trim index out of range for start_time. Got {start_time}, min: {self.time[0]}")
-        try:
-            trim_index_2 = np.argwhere(self.time > end_time)[0][0]
-        except IndexError:
-            raise IndexError(f"Trim index out of range for end_time. Got {end_time}, max: {self.time[-1]}")
-        return Signal(self.time[trim_index_1:trim_index_2], self.data[trim_index_1:trim_index_2], self.t_unit, self.d_unit)
-
-    def plot(self, tlim=None):
-        fig, (axt, axf) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-        axt.set_ylabel("Amplitude")
-        axt.plot(self.time, self.data, label='Signal')
-        axt.plot(self.time, self.amplitude_envelope, label='Envelope')
-        axt.plot([self.peak_time, self.peak_time], [-self.peak_amplitude, self.peak_amplitude], '--', color='red')
-        for (time, amplitude) in zip(self.peak_time, self.peak_amplitude):
-            axt.text(time, -amplitude*1.1, s=f"{time:.2e}")
-        
-        axt.plot([self.time[self.fft_start_index], self.time[self.fft_start_index]], 
-                 [-np.max(self.peak_amplitude), np.max(self.peak_amplitude)], '-.', color='black', label='FFT start time')
-        axt.set(xlabel=f'Time ({self.t_unit})', ylabel=f'Signal ({self.d_unit})')
-        if tlim is not None:
-            axt.xlim(tlim)
-        axt.legend()
-
-        axf.set(xlabel=f"Frequency", ylabel="Magnitude")
-        axf.plot(self.fft_frequency, self.fft_magnitude, label='FFT', marker='.')
-
-        plt.show()
-
     def bandpass(self, lowcut: float, highcut: float, order: int=2):
         bandpass_filter = spsignal.butter(order, Wn=(lowcut, highcut), btype='bandpass', output='sos', fs=self.sample_frequency)
         filtered_signal = spsignal.sosfilt(bandpass_filter, self.data)
@@ -210,6 +178,75 @@ class Signal:
         Column 0 is time, column 1 is data [[t1, d1], [t2, d2], ...]
         """
         return np.array([self.time, self.data]).T
+
+    def get_trimmed_signal(self, start_time, end_time):
+        try:
+            trim_index_1 = np.argwhere(self.time <= start_time)[-1][0]
+        except IndexError:
+            raise IndexError(f"Trim index out of range for start_time. Got {start_time}, min: {self.time[0]}")
+        try:
+            trim_index_2 = np.argwhere(self.time > end_time)[0][0]
+        except IndexError:
+            raise IndexError(f"Trim index out of range for end_time. Got {end_time}, max: {self.time[-1]}")
+        return Signal(self.time[trim_index_1:trim_index_2], self.data[trim_index_1:trim_index_2], self.t_unit, self.d_unit)
+
+    def plot(self, tlim=None):
+        fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+        self._plot_helper(self, axtime, axfrequency, tlim)
+        plt.show()
+
+    @staticmethod
+    def _plot_helper(signal: "Signal", axt, axf, tlim=None, label=""):
+        axt.set_ylabel("Amplitude")
+        axt.plot(signal.time, signal.data, label=f'{label} Signal')
+        axt.plot(signal.time, signal.amplitude_envelope, label=f'{label} Envelope')
+        axt.plot([signal.peak_time, signal.peak_time], [-signal.peak_amplitude, signal.peak_amplitude], '--', color='red')
+        for (time, amplitude) in zip(signal.peak_time, signal.peak_amplitude):
+            axt.text(time, -amplitude*1.1, s=f"{time:.2e}")
+        
+        axt.plot([signal.time[signal.fft_start_index], signal.time[signal.fft_start_index]], 
+                 [-np.max(signal.peak_amplitude), np.max(signal.peak_amplitude)], '-.', color='black', label=f'{label} FFT start time')
+        axt.set(xlabel=f'Time ({signal.t_unit})', ylabel=f'{label} Signal ({signal.d_unit})')
+        axt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
+        if tlim is not None:
+            axt.xlim(tlim)
+        axt.legend()
+
+        axf.set(xlabel=f"Frequency", ylabel="Magnitude")
+        axf.plot(signal.fft_frequency, signal.fft_magnitude, label=f'{label} FFT', marker='.')
+        return axt, axf
+    
+    
+    def compare_other_signal(self, other: Union['Signal', List['Signal']], tlim=None):
+        
+        if type(other) == Signal:
+            signals = [self, other]
+        elif type(other) == list:
+            signals = [self, *other]
+        else:
+            raise TypeError(f"Only supports: Signal | list[Signal], not {type(other)}")
+        
+        for i in range(1, len(signals)):
+
+            scaling_factor = np.max(self.amplitude_envelope) / np.max(signals[i].amplitude_envelope)
+            print(scaling_factor)
+            scaled_signal = Signal(signals[i].time, signals[i].data * scaling_factor, signals[i].t_unit, signals[i].d_unit)
+            # lag = lags[np.argmax(correlation)]
+            # print(lag)
+            # ax.plot(range(lags.size), lags)
+            fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+            axtime, axfrequency = self._plot_helper(self, axtime, axfrequency, tlim, label=f"Sig{0}")
+            axtime, axfrequency = self._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Sig{i}")
+
+            plt.show()       
+
+
+            fig2 = plt.figure()
+            ax = fig2.add_axes(111)
+            correlation = spsignal.correlate(self.data, scaled_signal.data, mode="full")
+            lags = spsignal.correlation_lags(self.data.size, scaled_signal.data.size, mode="full")
+            ax.plot(lags, correlation)
+            plt.show()
 
 
 if __name__ == '__main__':
