@@ -38,12 +38,17 @@ class Signal:
         # fft_freq = fft.fftfreq(signal_samples, avg_sample_interval)  # Frequency axis
         # --------
 
+        # TODO make the start index the index of the first zero crossing before the threshold
         # -------- Clip off start
         relative_threshold = 0.02
-        fft_start_index = np.where(np.abs(self.data - np.mean(self.data)) > 
-                                   np.max(np.abs(self.data - np.mean(self.data))) * relative_threshold)[0][0]
-        fft_output = fft.fft(self.data[fft_start_index:])
-        clipped_samples = len(self.data[fft_start_index:])
+        zero_centered_data = self.data - np.mean(self.data)
+        fft_start_index = np.where(np.abs(zero_centered_data) > 
+                                   np.max(np.abs(zero_centered_data)) * relative_threshold)[0][0]
+        zero_crossing = np.where(zero_centered_data[:fft_start_index-1] * zero_centered_data[1:fft_start_index] < 0)[0][-1
+                                                                                                                         ]
+
+        fft_output = fft.fft(self.data[zero_crossing:])
+        clipped_samples = len(self.data[zero_crossing:])
 
         fft_magnitude = np.abs(fft_output)  # Magnitude of the FFT
         fft_freq = fft.fftfreq(clipped_samples, avg_sample_interval)
@@ -53,7 +58,7 @@ class Signal:
             mask = fft_freq >= 0
             fft_freq = fft_freq[mask]
             fft_magnitude = fft_magnitude[mask]
-        return fft_output, fft_freq, fft_magnitude, fft_start_index
+        return fft_output, fft_freq, fft_magnitude, zero_crossing
 
     @property
     def fft_frequency(self):
@@ -196,10 +201,15 @@ class Signal:
         plt.show()
 
     @staticmethod
-    def _plot_helper(signal: "Signal", axt, axf, tlim=None, label=""):
+    def _plot_helper(signal: "Signal", axt, axf, tlim=None, label="", colors=None):
         axt.set_ylabel("Amplitude")
-        axt.plot(signal.time, signal.data, label=f'{label} Signal', alpha=0.7)
-        axt.plot(signal.time, signal.amplitude_envelope, label=f'{label} Envelope')
+        if colors is not None: 
+            axt.plot(signal.time, signal.data, label=f'{label} Signal', alpha=0.7, color=colors[0])
+            axt.plot(signal.time, signal.amplitude_envelope, label=f'{label} Envelope', color=colors[1])
+        else:
+            axt.plot(signal.time, signal.data, label=f'{label} Signal', alpha=0.7)
+            axt.plot(signal.time, signal.amplitude_envelope, label=f'{label} Envelope')
+
         axt.plot([signal.peak_time, signal.peak_time], [-signal.peak_amplitude, signal.peak_amplitude], '--', color='red')
         for (time, amplitude) in zip(signal.peak_time, signal.peak_amplitude):
             axt.text(time, -amplitude*1.1, s=f"{time:.2e}")
@@ -217,35 +227,33 @@ class Signal:
         return axt, axf
     
     
-    def compare_other_signal(self, other: Union['Signal', List['Signal']], tlim=None):
+    # def compare_other_signal(self, other: Union['Signal', List['Signal']], tlim=None):
         
-        if type(other) == Signal:
-            signals = [self, other]
-        elif type(other) == list:
-            signals = [self, *other]
-        else:
-            raise TypeError(f"Only supports: Signal | list[Signal], not {type(other)}")
+    #     if type(other) == Signal:
+    #         signals = [self, other]
+    #     elif type(other) == list:
+    #         signals = [self, *other]
+    #     else:
+    #         raise TypeError(f"Only supports: Signal | list[Signal], not {type(other)}")
         
-        for i in range(1, len(signals)):
+    #     for i in range(1, len(signals)):
 
-            scaling_factor = np.max(self.amplitude_envelope) / np.max(signals[i].amplitude_envelope)
-            print(scaling_factor)
-            scaled_signal = Signal(signals[i].time, signals[i].data * scaling_factor, signals[i].t_unit, signals[i].d_unit)
-            # lag = lags[np.argmax(correlation)]
-            # print(lag)
-            # ax.plot(range(lags.size), lags)
-            fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-            axtime, axfrequency = self._plot_helper(self, axtime, axfrequency, tlim, label=f"Sig{0}")
-            axtime, axfrequency = self._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Sig{i}")
+    #         scaling_factor = np.max(self.amplitude_envelope) / np.max(signals[i].amplitude_envelope)
+    #         scaled_signal = Signal(signals[i].time, signals[i].data * scaling_factor, signals[i].t_unit, signals[i].d_unit)
+    #         # lag = lags[np.argmax(correlation)]
+    #         # print(lag)
+    #         # ax.plot(range(lags.size), lags)
+    #         fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+    #         axtime, axfrequency = self._plot_helper(self, axtime, axfrequency, tlim, label=f"Sig{0}")
+    #         axtime, axfrequency = self._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Sig{i}")
 
-
-
-            fig2 = plt.figure()
-            ax = fig2.add_axes(111)
-            correlation = spsignal.correlate(self.amplitude_envelope, scaled_signal.amplitude_envelope, mode="full")
-            lags = spsignal.correlation_lags(self.data.size, scaled_signal.data.size, mode="full")
-            ax.plot(lags, correlation)
-            plt.show()
+    #         fig2 = plt.figure()
+    #         ax = fig2.add_axes(111)
+    #         correlation = spsignal.correlate(self.amplitude_envelope, scaled_signal.amplitude_envelope, mode="full")
+    #         lags = spsignal.correlation_lags(self.data.size, scaled_signal.data.size, mode="full")
+    #         # print(correlation.size // 2 - np.argmax(correlation), lags[np.argmax(correlation)])
+    #         ax.plot(lags, correlation)
+    #         plt.show()
 
 
 if __name__ == '__main__':

@@ -94,10 +94,9 @@ def average_signals(signals: list[list[Signal]], plot_outliers=True) -> list[Sig
             fig, axs = plt.subplots(channels // 2, 2, figsize=(12, 8))  # Create a 2x2 grid of subplots
             fig.suptitle(f"Outlier signals vs Averages (measurement index: {outlier_index})")
 
-
             for ch in range(channels):
                 row, col = ch // 2, ch % 2  # Determine subplot position
-                if row > 1:
+                if len(axs.shape) > 1:
                     ax = axs[row, col]
                 else:
                     ax = axs[col]
@@ -172,11 +171,11 @@ if __name__ == "__main__":
     data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "measurements_0"
     avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={31}, plot_outliers=True)
     # [sig.plot() for sig in avg_signals]
-    # [sig.zero_average_signal().bandpass(30e3, 90e3).plot() for sig in avg_signals]
+    [sig.zero_average_signal().bandpass(30e3, 90e3).plot() for sig in avg_signals]
 
-    ch4_signal = avg_signals[1].zero_average_signal().bandpass(30e3, 90e3)
-    ch1_signal = avg_signals[2].zero_average_signal().bandpass(30e3, 90e3)
-    ch4_signal.compare_other_signal(ch1_signal)
+    # ch4_signal = avg_signals[1].zero_average_signal().bandpass(30e3, 90e3)
+    # ch1_signal = avg_signals[2].zero_average_signal().bandpass(30e3, 90e3)
+    # ch4_signal.compare_other_signal(ch1_signal)
 
 
     # avg_signals[0].plot()
