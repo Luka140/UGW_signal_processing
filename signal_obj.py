@@ -38,7 +38,6 @@ class Signal:
         # fft_freq = fft.fftfreq(signal_samples, avg_sample_interval)  # Frequency axis
         # --------
 
-        # TODO make the start index the index of the first zero crossing before the threshold
         # -------- Clip off start
         relative_threshold = 0.02
         zero_centered_data = self.data - np.mean(self.data)
@@ -224,6 +223,9 @@ class Signal:
 
         axf.set(xlabel=f"Frequency", ylabel="Magnitude")
         axf.plot(signal.fft_frequency, signal.fft_magnitude, label=f'{label} FFT', marker='.')
+        axf.ticklabel_format(style='sci', axis='x')
+        axf.set(xlim=(0, 2 * signal.fft_frequency[np.argmax(signal.fft_magnitude)]))
+        # axf.xlim
         return axt, axf
     
     

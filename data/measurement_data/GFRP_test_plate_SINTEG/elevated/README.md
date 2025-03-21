@@ -1,9 +1,6 @@
 -Note im not sure whether 0 is actually 0 or 90, so these may be rotated by 90 deg
-Plate layup
-"2x E-glass Q1600 [0/pm45/90]
- 2x UD1200 [0]
- 2X E-glass Q1600 [0/pm45/90]"
-Total thickness: 6 mm
+
+These measurements are taken in the supposed 0 direction
 
 Distances:
 CH4 is wired into the device...
@@ -17,8 +14,5 @@ time scale is microseconds
 [0-~800]
 if you have the right sample rate, you should see a peak at 60khz
 
-Transducers:
-4x S1802 DPC shear transducer
-
-Tx Settings: 60kHz 3 pulses
-These are not windowed, they are simply 3 pure sines 
+In this set of measurements, the plate was elevated by putting some folded paper under the four corners.
+Measurements are taken in the 'floating' region

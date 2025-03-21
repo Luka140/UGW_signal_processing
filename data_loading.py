@@ -51,7 +51,7 @@ def average_signals(signals: list[list[Signal]], plot_outliers=True) -> list[Sig
     """
     averaged_channels = []     # Contains the averaged Signal objects
     interpolated_channels = [] # Contains interpolated version of each signal [ch1[measurement1, ...], ch2[...], ...]
-   
+    
     channels = len(signals[0])
     for ch in range(channels):
         min_time, max_time = min([sig[ch].time[0] for sig in signals]), max([sig[ch].time[-1] for sig in signals])
