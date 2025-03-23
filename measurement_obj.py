@@ -77,6 +77,7 @@ class Measurement:
 
             # TODO can this be improved by correlating raw analytical complex signal rather than envelope??
             # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
+            # TODO try to backpropagate signals to the tx?
 
             time_shift_data     = abs(lags[np.argmax(correlation_data)]) / base_signal.sample_frequency
             time_shift_envelope = abs(lags[np.argmax(correlation_envelope)]) / base_signal.sample_frequency
@@ -143,23 +144,23 @@ if __name__ == '__main__':
     # data_dir_ab = pathlib.Path(__file__).parent / 'data' / 'measurement_data'/ 'abaqus_test_steel'
     # sig = load_signals_abaqus(data_dir_ab)[0]
 
-    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "measurements_0"
-    avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={31}, plot_outliers=True)
+    # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "measurements_0"
+    # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={31}, plot_outliers=True)
     
     # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "measurements_90"
     # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={33}, plot_outliers=True)
     
-    avg_signals = [sig.zero_average_signal().bandpass(30e3, 90e3) for sig in avg_signals]
-    measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], avg_signals[-1], avg_signals[:-1], modes)
-    measurement.compare_signals(1, 2)
-
-
-    # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "longer_measurements_1"
-    # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={}, plot_outliers=True)
-
     # avg_signals = [sig.zero_average_signal().bandpass(30e3, 90e3) for sig in avg_signals]
-    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (182e-3, 0.)], avg_signals[-1], avg_signals[:-1], modes)
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], avg_signals[-1], avg_signals[:-1], modes)
     # measurement.compare_signals(1, 2)
+
+
+    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "longer_measurements_1"
+    avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={}, plot_outliers=True)
+
+    avg_signals = [sig.zero_average_signal().bandpass(30e3, 90e3) for sig in avg_signals]
+    measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (182e-3, 0.)], avg_signals[-1], avg_signals[:-1], modes)
+    measurement.compare_signals(1, 2)
 
 
     # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "longer_measurements_2"
