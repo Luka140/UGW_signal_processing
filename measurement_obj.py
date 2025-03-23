@@ -64,6 +64,7 @@ class Measurement:
             axtime, axfrequency = Signal._plot_helper(base_signal, axtime, axfrequency, tlim, label=f"Base_sig ", colors=['c', 'blue'])
             axtime, axfrequency = Signal._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Scaled_comp_sig{rx_index}", colors=['yellow', 'orange'])
 
+            # TODO correlating raw signal is not practical because it forces the signals to be in phase even when they are not. 
             fig2 = plt.figure()
             ax = fig2.add_axes(111)
             correlation_envelope    = spsignal.correlate(base_signal.amplitude_envelope, scaled_signal.amplitude_envelope, mode="full")
@@ -120,6 +121,10 @@ class Measurement:
         if not valid:
             raise TypeError(reason)
 
+class DispersionCurve:
+
+    def __init__(self):
+        pass
 
 if __name__ == '__main__':
     data_dir = pathlib.Path(__file__).parent / 'data' / 'dispersion_curves' / 's355j2_dispersion_curves'

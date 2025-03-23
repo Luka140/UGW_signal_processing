@@ -28,30 +28,27 @@ class Signal:
         sample_frequency = 1 / avg_sample_interval
         return sample_frequency
 
-    def get_fft(self, positive_half: bool = True):
+    def get_fft(self, positive_half: bool = True, zero_pad_times=2):
         avg_sample_interval = 1 / self.sample_frequency
 
-        # -------- Initial
-        # signal_samples = len(self.data)  # Number of data points
-        # fft_output = fft.fft(self.data)
-        # fft_magnitude = np.abs(fft_output)  # Magnitude of the FFT
-        # fft_freq = fft.fftfreq(signal_samples, avg_sample_interval)  # Frequency axis
-        # --------
-
-        # -------- Clip off start
+        # Clip off start for better fit
         relative_threshold = 0.02
         zero_centered_data = self.data - np.mean(self.data)
         fft_start_index = np.where(np.abs(zero_centered_data) > 
                                    np.max(np.abs(zero_centered_data)) * relative_threshold)[0][0]
         zero_crossing = np.where(zero_centered_data[:fft_start_index-1] * zero_centered_data[1:fft_start_index] < 0)[0][-1
                                                                                                                          ]
+        interval_data = self.data[zero_crossing:]
+        
+        # Zero padding increases the granularity of the frequency domain (not actual resolution)
+        if zero_pad_times > 1: 
+            interval_data = np.concat((interval_data, np.zeros_like(interval_data)))
 
-        fft_output = fft.fft(self.data[zero_crossing:])
-        clipped_samples = len(self.data[zero_crossing:])
+        fft_output = fft.fft(interval_data)
+        clipped_samples = len(interval_data)
 
         fft_magnitude = np.abs(fft_output)  # Magnitude of the FFT
         fft_freq = fft.fftfreq(clipped_samples, avg_sample_interval)
-        # --------
 
         if positive_half:
             mask = fft_freq >= 0
