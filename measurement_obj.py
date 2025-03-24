@@ -64,7 +64,7 @@ class Measurement:
             axtime, axfrequency = Signal._plot_helper(base_signal, axtime, axfrequency, tlim, label=f"Base_sig ", colors=['c', 'blue'])
             axtime, axfrequency = Signal._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Scaled_comp_sig{rx_index}", colors=['yellow', 'orange'])
 
-            # TODO correlating raw signal is not practical because it forces the signals to be in phase even when they are not. 
+            # TODO for envelope correlation, isolate the interesting part of the spectrum
             fig2 = plt.figure()
             ax = fig2.add_axes(111)
             correlation_envelope    = spsignal.correlate(base_signal.amplitude_envelope, scaled_signal.amplitude_envelope, mode="full")
@@ -80,16 +80,18 @@ class Measurement:
             # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
             # TODO try to backpropagate signals to the tx?
 
-            time_shift_data     = abs(lags[np.argmax(correlation_data)]) / base_signal.sample_frequency
+            # time_shift_data     = abs(lags[np.argmax(correlation_data)]) / base_signal.sample_frequency
             time_shift_envelope = abs(lags[np.argmax(correlation_envelope)]) / base_signal.sample_frequency
             time_shift_peaks    = abs(comparison_signal.peak_time[0] - base_signal.peak_time[0])
+            # time_shift_waveform_start = abs(comparison_signal.time[comparison_signal.fft_start_index] - base_signal.time[base_signal.fft_start_index])
 
-            print(f"ToF for max correlation of scaled signal: {time_shift_data:2e} {base_signal.t_unit}")
-            print(f'           "            of scaled envelope: {time_shift_envelope:.2e} {base_signal.t_unit}')
+            # print(f"\nToF for max correlation of scaled signal: {time_shift_data:2e} {base_signal.t_unit}")
+            print(f'\nTof for max correlation of scaled envelope: {time_shift_envelope:.2e} {base_signal.t_unit}')
             print(f"ToF based on first envelope peaks: {time_shift_peaks:.2e} {base_signal.t_unit}")
+            # print(f"ToF based on 2% threshold crossing: {time_shift_waveform_start:.2e} {base_signal.t_unit}")
             distance = np.linalg.norm(self.receiver_positions[base_index] - self.receiver_positions[rx_index])
             print(f"Distance travelled {distance}")
-            print(f"Wave velocity: {distance / time_shift_data:.2f} (corr. scaled signal) - {distance / time_shift_envelope:.2f} (corr. scaled envelope) - {distance / time_shift_peaks:.2f} (peaks)")
+            print(f"Wave velocity: {distance / (time_shift_envelope+1e-14):.2f} (corr. scaled envelope) - {distance / (time_shift_peaks+1e-14):.2f} (peaks)")
 
             fig, (axtime2, axfrequency2) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
             axtime2.set(title="Shifted signals according to envelope correlation")
@@ -165,12 +167,12 @@ if __name__ == '__main__':
     # measurement.compare_signals(1, 2)
 
 
-    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "longer_measurements_1"
-    avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={}, plot_outliers=True)
+    # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "longer_measurements_1"
+    # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={}, plot_outliers=True)
 
-    avg_signals = [sig.zero_average_signal().bandpass(30e3, 90e3) for sig in avg_signals]
-    measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (182e-3, 0.)], avg_signals[-1], avg_signals[:-1])
-    measurement.compare_signals(1, 2)
+    # avg_signals = [sig.zero_average_signal().bandpass(30e3, 90e3) for sig in avg_signals]
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (182e-3, 0.)], avg_signals[-1], avg_signals[:-1])
+    # measurement.compare_signals(1, 2)
 
 
     # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "longer_measurements_2"
@@ -185,7 +187,23 @@ if __name__ == '__main__':
     # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={10, 19, 23, 36, 48, 54, 58}, plot_outliers=True)
 
     # avg_signals = [sig.zero_average_signal().bandpass(40e3, 80e3) for sig in avg_signals]
-    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], avg_signals[-1], avg_signals[:-1], modes)
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], avg_signals[-1], avg_signals[:-1])
     # measurement.compare_signals(0, 2)
+
+
+    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "alu_test_plate" / "a_measurements_110khz"
+    avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={1, 40, 45, 46, 47, 48}, plot_outliers=False)
+
+    avg_signals = [sig.zero_average_signal().bandpass(40e3, 80e3) for sig in avg_signals]
+    measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=avg_signals[-1], rx_signal=avg_signals[:-1])
+    measurement.compare_signals(0,2)
+
+
+    fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+    for i in range(len(avg_signals)):
+            axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
+    plt.show()
+
+
 
     # avg_signals[2].get_stfft(1e-4)
