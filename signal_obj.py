@@ -34,12 +34,17 @@ class Signal:
         # Clip off start for better fit
         relative_threshold = 0.02
         zero_centered_data = self.data - np.mean(self.data)
-        fft_start_index = np.where(np.abs(zero_centered_data) > 
-                                   np.max(np.abs(zero_centered_data)) * relative_threshold)[0][0]
-        zero_crossing = np.where(zero_centered_data[:fft_start_index-1] * zero_centered_data[1:fft_start_index] < 0)[0][-1
-                                                                                                                         ]
-        interval_data = self.data[zero_crossing:]
+        fft_start_index = np.where(np.abs(zero_centered_data) > (np.max(np.abs(zero_centered_data)) * relative_threshold))[0][0]
         
+        # Detect last zero crossing before wavepacket. Otherwise start signal at zero regularly
+        if fft_start_index > 0.05 * self.data.size:
+            zero_crossing = np.where(zero_centered_data[:fft_start_index-1] * zero_centered_data[1:fft_start_index] < 0)[0][-1]
+            interval_data = self.data[zero_crossing:]
+        else: 
+            zero_crossing = 0
+            interval_data = self.data 
+
+
         # Zero padding increases the granularity of the frequency domain (not actual resolution)
         if zero_pad_times > 1: 
             interval_data = np.concat((interval_data, np.zeros_like(interval_data)))
@@ -197,19 +202,24 @@ class Signal:
         plt.show()
 
     @staticmethod
-    def _plot_helper(signal: "Signal", axt, axf, tlim=None, label="", colors=None):
-        axt.set_ylabel("Amplitude")
-        if colors is not None: 
-            axt.plot(signal.time, signal.data, label=f'{label} Signal', alpha=0.7, color=colors[0])
-            axt.plot(signal.time, signal.amplitude_envelope, label=f'{label} Envelope', color=colors[1])
-        else:
-            axt.plot(signal.time, signal.data, label=f'{label} Signal', alpha=0.7)
-            axt.plot(signal.time, signal.amplitude_envelope, label=f'{label} Envelope')
+    def _plot_helper(signal: "Signal", axt, axf, tlim=None, label="", colors=None, plot_envelope=True, plot_waveform=True):
 
+        # Set default colors if not provided
+        waveform_color = colors[0] if colors else None
+        envelope_color = colors[1] if colors else None
+
+        axt.set_ylabel("Amplitude")
+        if plot_waveform:
+            axt.plot(signal.time, signal.data, label=f'{label} Signal', alpha=0.7, color=waveform_color)
+        if plot_envelope:
+            axt.plot(signal.time, signal.amplitude_envelope, label=f'{label} Envelope', color=envelope_color)
+
+        # -------- Plot signal peaks 
         axt.plot([signal.peak_time, signal.peak_time], [-signal.peak_amplitude, signal.peak_amplitude], '--', color='red')
         for (time, amplitude) in zip(signal.peak_time, signal.peak_amplitude):
             axt.text(time, -amplitude*1.1, s=f"{time:.2e}")
         
+        # -------- Plot start time used for FFT
         axt.plot([signal.time[signal.fft_start_index], signal.time[signal.fft_start_index]], 
                  [-np.max(signal.peak_amplitude), np.max(signal.peak_amplitude)], '-.', color='black', label=f'{label} FFT start time')
         axt.set(xlabel=f'Time ({signal.t_unit})', ylabel=f'{label} Signal ({signal.d_unit})')
@@ -218,6 +228,7 @@ class Signal:
             axt.xlim(tlim)
         axt.legend()
 
+        # -------- Plot frequency spectrum
         axf.set(xlabel=f"Frequency", ylabel="Magnitude")
         axf.plot(signal.fft_frequency, signal.fft_magnitude, label=f'{label} FFT', marker='.')
         axf.ticklabel_format(style='sci', axis='x')
