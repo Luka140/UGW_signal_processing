@@ -7,6 +7,8 @@ import scipy.interpolate as interpolate
 import scipy.signal as spsignal
 from signal_obj import Signal
 import matplotlib.pyplot as plt
+import copy 
+
 
 def load_signals_labview(path, plot_outliers=True):
     unit_row = 0
@@ -40,22 +42,44 @@ def load_signals_labview(path, plot_outliers=True):
 
     return signals
 
-def average_signals(signals: list[list[Signal]], plot_outliers=True) -> list[Signal]:
-    """_summary_
+
+def average_signals(initial_signals: list[list[Signal]], plot_outliers=True, tx_ch: int | None=None) -> list[Signal]:
+    """
 
     Args:
-        signals (list[list[Signal]]): A nested list of Signal objects. 
+        initial_signals (list[list[Signal]]): A nested list of Signal objects. 
             The data structure should be: [measurement1[ch1, ch2, ...], measurement2[...], ...]
+        plot_outliers (bool): Show plots of signals detected as outliers.
     Returns:
         list[Signal]: A list of averaged Signals, one for each channel
     """
+    signals = copy.deepcopy(initial_signals) # Prevent mutating input
     averaged_channels = []     # Contains the averaged Signal objects
     interpolated_channels = [] # Contains interpolated version of each signal [ch1[measurement1, ...], ch2[...], ...]
-    
     channels = len(signals[0])
+    
+    # ---------------- Find consistent start time based on tx channel
+    start_times = [0.] * len(signals)
+    if tx_ch is not None:
+        for i, measurement in enumerate(signals):
+            tx_signal = measurement[tx_ch]
+            # TODO detect clipping waveform. If this is the case, detect based on another metric
+            start_index = np.argmax(tx_signal.amplitude_envelope)
+            time_offset = tx_signal.time[start_index]
+            start_times[i] = time_offset
+
+    # ---------------- Set start time to be consistent for each signal 
+    # TODO maybe instead just drop the ones that deviate a lot 
+    # for i, _ in enumerate(signals):
+    #     for ch in range(channels):
+    #         signals[i][ch] = Signal(signals[i][ch].time - start_times[i], signals[i][ch].data, signals[i][ch].t_unit, signals[i][ch].d_unit)
+            
+    # ---------------- Create consistent grid of times that are available for each signal 
+    min_time, max_time = max([sig[ch].time[0] for sig in signals for ch in range(channels)]), min([sig[ch].time[-1] for sig in signals for ch in range(channels)])
+    common_time = np.linspace(min_time, max_time, int(signals[0][0].time.size)) # Set number of datapoints based on first measurement first channel. They should all be the same.
+
+    # ---------------- Interpolate signals to the consistent grid, then average the results 
     for ch in range(channels):
-        min_time, max_time = min([sig[ch].time[0] for sig in signals]), max([sig[ch].time[-1] for sig in signals])
-        common_time = np.linspace(min_time, max_time, int(signals[0][ch].time.size))
         interpolated_signal_arrays = []
         for measurement in signals:
             # Interpolate the signal to the common time points, and store the interpolated points
@@ -70,11 +94,14 @@ def average_signals(signals: list[list[Signal]], plot_outliers=True) -> list[Sig
                 # plt.show()
         
         interpolated_channels.append(interpolated_signal_arrays) # Store to compare with averages for outlier detection
+       
         avg_signal = np.mean(np.stack(interpolated_signal_arrays, axis=0), axis=0)
         averaged_channels.append(Signal(common_time, avg_signal, measurement[ch].t_unit, measurement[ch].d_unit))    
 
+
+    # ---------------- Outlier detection (does not remove them, only presents them)
     # TODO this doesnt really work if most of the signal is just noise like in the Labview signals
-    # Outlier detection using Z-score
+    
     outlier_idxs = [] # Format [(measurement, channel), (measurement, channel)]
     for channel_idx, (channel, avg_channel) in enumerate(zip(interpolated_channels, averaged_channels)):
         z_scores = []
@@ -131,7 +158,7 @@ def load_signals_abaqus(path, t_unit=None, d_unit=None):
 
     return signals
 
-def load_signals_SINTEG(directory, sample_frequency=1e6, skip_idx={}, plot_outliers=False):
+def load_signals_SINTEG(directory:pathlib.Path, sample_frequency=1e6, skip_idx={}, plot_outliers=False, tx_ch=-1):
     """Load 4 channel signals from the SINTEG acquisition setup.
 
     Args:
@@ -143,7 +170,8 @@ def load_signals_SINTEG(directory, sample_frequency=1e6, skip_idx={}, plot_outli
     """
     sample_spacing = 1 / sample_frequency
     signals = []
-    for i, path in enumerate(directory.glob("*.txt")):
+    data_files = [path for path in directory.glob("*.txt") if 'read' not in path.name.lower()]
+    for i, path in enumerate(data_files):
         if i in skip_idx:
             continue
         data = np.loadtxt(path)
@@ -152,10 +180,10 @@ def load_signals_SINTEG(directory, sample_frequency=1e6, skip_idx={}, plot_outli
         time = np.arange(0, samples * sample_spacing, sample_spacing)
 
         for i in range(data.shape[1]):
-            measurement_channels.append(Signal(time, data[:,i], t_unit='s', d_unit='micro_v'))
+            measurement_channels.append(Signal(time, data[:,i], t_unit='s', d_unit='micro_v').zero_average_signal())
         # [signal.plot() for signal in measurement_channels]
         signals.append(measurement_channels)
-    return average_signals(signals, plot_outliers=plot_outliers)
+    return average_signals(signals, plot_outliers=plot_outliers, tx_ch=tx_ch)
 
 
 
@@ -169,7 +197,7 @@ if __name__ == "__main__":
     # signal_list = load_signals_abaqus(data_dir)
 
     data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "measurements_0"
-    avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={31}, plot_outliers=True)
+    avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={31}, plot_outliers=True, tx_ch=None)
     # [sig.plot() for sig in avg_signals]
     [sig.zero_average_signal().bandpass(30e3, 90e3).plot() for sig in avg_signals]
 
