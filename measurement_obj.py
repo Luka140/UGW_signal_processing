@@ -4,9 +4,10 @@ import scipy.interpolate as interpolate
 import scipy.signal as spsignal 
 import matplotlib.pyplot as plt 
 import numpy as np 
+from typing import Collection
 from signal_obj import Signal 
 from data_loading import load_signals_abaqus, load_signals_SINTEG
-from typing import Collection
+from dispersiondata_obj import DispersionData
 
 
 class Measurement:
@@ -14,7 +15,7 @@ class Measurement:
                  rx_pos: Collection[Collection[float]] | Collection[float] , 
                  tx_signal: Signal,
                  rx_signal: Collection[Signal]| Signal, 
-                 dispersion_curves=None):
+                 dispersion_curves: None|DispersionData=None):
         # TODO allow measurement with / without tx signal
         # TODO and allow for comparisons to tx signal
         self._valid_input(rx_signal, rx_pos)
@@ -28,24 +29,89 @@ class Measurement:
 
         self.dispersion_curves = dispersion_curves
 
-    def compensate_dispersion(self):
-        signal_fft = self.received_signals.fft_output
-        fft_freqs  = self.received_signals.fft_frequency
-        
-        first_peak_time = min(self.received_signals.peak_time)
-        # Window FFT around this time? 
-        estimated_velocity = np.linalg.norm(self.receiver_positions - self.transmitter_position)
+    def _remove_dispersion_known_distance(self, signal_obj: Signal, k_omega, omega_0, distance):
+        """
+        Based on: A Linear Mapping Technique for Dispersion Removal of Lamb Waves (L. Liu and F. G. Yuan)
+        """
 
-        lowest_vel_error = np.inf
-        lowest_vel_index = None 
-        # TODO check units
-        # TODO maybe simply apply a filter for all frequencies and then add
-        # TODO what if you do a couple very narrow bandpass filters and only use those
-                # There is probably a more efficient way of doing this mathematically.
-        for mode in self.dispersion_curves:
-            velocities = mode(fft_freqs)            
+        # TODO I think for this to work, t=0 needs to be set correctly
+        n = len(signal_obj.data)
+        pad_times = 4
+        
+        dt = 1 / signal_obj.sample_frequency
+        # Set to pad 8x signal length for fft
+        signal_obj.set_fft_pad_times(pad_times)
+        signal_obj.plot()
+        fft_signal = signal_obj.fft_output
+        freqs      = np.fft.fftfreq(n * (pad_times + 1), dt) * 2 * np.pi
+                
+        # Compute k2 = ½ * d²k/dω²
+        dk_domega = np.gradient(k_omega[:,1], k_omega[:,0]) 
+        dk2_domega = np.gradient(dk_domega, k_omega[:,0]) / 2
+        k2_interp = interpolate.interp1d(k_omega[:,0], dk2_domega, kind='cubic', fill_value=0)
+        
+        # Apply phase correction to entire bandwidth
+        modified_spectrum = fft_signal.copy()
+        
+        # Get sigk2_interpnal's dominant frequency range (e.g., ±3σ around ω₀)
+        bandwidth = 3 * (omega_0 / 10)  # Adjust based on your signal
+        omega_mask = (freqs >= omega_0 - bandwidth) & (freqs <= omega_0 + bandwidth)
+        
+        # Apply correction only where dispersion data is valid
+        valid_freq_mask = (freqs >= np.min(k_omega[:,0])) & (freqs <= np.max(k_omega[:,0]))
+        omega_mask = omega_mask & valid_freq_mask
+        
+        modified_spectrum[omega_mask] *= np.exp(
+            1j * k2_interp(freqs[omega_mask]) * (freqs[omega_mask] - omega_0)**2 * distance
+        )
+        
+        # Inverse FFT and remove padding
+        compensated_signal = np.fft.ifft(modified_spectrum)[:n]  # Truncate to original length
+        return np.real(compensated_signal)
+
+    # def _remove_dispersion_known_distance(self, signal_obj: Signal, k_omega, omega_0, distance):
+    #     """
+    #     Based on: A Linear Mapping Technique for Dispersion Removal of Lamb Waves (L. Liu and F. G. Yuan)
+    #     """
+    #     n = len(signal_obj.data)
+    #     dt = 1 / signal_obj.sample_frequency
+    #     fft_signal = np.fft.fft(signal_obj.data)
+    #     freqs = np.fft.fftfreq(n, dt) * 2 * np.pi  # Get angular frequencies
+        
+    #     # Interpolate dispersion relation
+    #     # k_interp = interpolate.interp1d(k_omega[:,0], k_omega[:,1], kind='cubic')
+        
+    #     # Compute k2 (second derivative)
+    #     dk_domega  = np.gradient(k_omega[:,1], k_omega[:,0])
+    #     dk2_domaga = np.gradient(dk_domega, k_omega[:,0])/2
+    #     k2_interp = interpolate.interp1d(k_omega[:,0], dk2_domaga, kind='cubic', fill_value=0)
+        
+    #     # Apply phase correction (Equation 15)
+    #     omega_mask = (freqs > 0.1*omega_0) & (freqs < 2*omega_0)  # Avoid DC and Nyquist
+    #     modified_spectrum = np.zeros_like(fft_signal, dtype=complex)
+    #     modified_spectrum[omega_mask] = fft_signal[omega_mask] * \
+    #         np.exp(1j * k2_interp(freqs[omega_mask]) * (freqs[omega_mask] - omega_0)**2 * distance)
+        
+    #     compensated_signal = np.fft.ifft(modified_spectrum)
+    #     return np.real(compensated_signal)
+    
+    def compensate_dispersion(self, center_frequency = 60e3, mode='SSH0'):
+
+        omega0 = center_frequency * 2 * np.pi 
+        compensated_signals = []
+        for i in range(len(self.received_signals)):
+            distance = np.linalg.norm(self.receiver_positions[i] - self.transmitter_position) 
+            curves = self.dispersion_curves.get_dispersion_curves(frequency_range=(0, center_frequency * 3 /1000))
+            k_omega = curves[mode][['f (kHz)','Wavenumber (rad/mm)']].to_numpy(dtype=float)
+            # Convert to angular frequency and base units 
+            k_omega[:,0] *= 2 * np.pi * 1000
+            k_omega[:,1] *= 1000
+            # TODO unit conversions in dispersiondata object 
             
-        # phase_shift = -2 * np.pi * frequencies * d / vp
+            new_signal_data = self._remove_dispersion_known_distance(self.received_signals[i], k_omega, omega0, distance)
+            compensated_signals.append(Signal(self.received_signals[i].time, new_signal_data, self.received_signals[i].t_unit, self.received_signals[i].d_unit)) 
+        return compensated_signals
+
 
 
     def compare_signals(self, base_index: int, comparison_indices: int | Collection[int], tlim=None, mode='signal'):
@@ -64,15 +130,35 @@ class Measurement:
             axtime, axfrequency = Signal._plot_helper(base_signal, axtime, axfrequency, tlim, label=f"Base_sig ", colors=['c', 'blue'])
             axtime, axfrequency = Signal._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Scaled_comp_sig{rx_index}", colors=['yellow', 'orange'])
 
-            # TODO for envelope correlation, isolate the interesting part of the spectrum
-            fig2 = plt.figure()
-            ax = fig2.add_axes(111)
+
+            # ----------------------Get the time of the second peak for both signals
+                    # base_second_peak_time = np.sort(base_signal.peak_time)[1]   if len(base_signal.peak_time)   > 1 else base_signal.time[-1]
+                    # comp_second_peak_time = np.sort(scaled_signal.peak_time)[1] if len(scaled_signal.peak_time) > 1 else scaled_signal.time[-1]
+                    # second_peak_time = max(base_second_peak_time, comp_second_peak_time)
+
+                    # # Trim the signals up to their second peaks
+                    # base_envelope_trimmed = base_signal.get_trimmed_signal(0, second_peak_time)
+                    # comp_envelope_trimmed = scaled_signal.get_trimmed_signal(0, second_peak_time)
+                    
+                    # # Calculate correlation using only the trimmed portions
+                    # correlation_envelope = spsignal.correlate(base_envelope_trimmed.amplitude_envelope, comp_envelope_trimmed.amplitude_envelope, mode="full")
+                    # lags = spsignal.correlation_lags(len(base_envelope_trimmed.time), len(comp_envelope_trimmed.time), mode="full")
+                    
+                    # fig0 = plt.figure()
+                    # ax0 = fig0.add_axes(111)
+                    # ax0.plot(base_envelope_trimmed.time, base_envelope_trimmed.amplitude_envelope, label='Base signal')
+                    # ax0.plot(comp_envelope_trimmed.time, comp_envelope_trimmed.amplitude_envelope, label='Comp signal')
+                    # ax0.set(title="Amplitude envelope sections used for correlation")
+                    # plt.show()
+
             correlation_envelope    = spsignal.correlate(base_signal.amplitude_envelope, scaled_signal.amplitude_envelope, mode="full")
-            correlation_data        = spsignal.correlate(base_signal.data, scaled_signal.data, mode="full")
             lags = spsignal.correlation_lags(base_signal.data.size, scaled_signal.data.size, mode="full")
             # print(correlation.size // 2 - np.argmax(correlation), lags[np.argmax(correlation)])
-            ax.plot(lags, correlation_data, alpha=0.5, color='b', label='Scaled signal')
-            ax.plot(lags, correlation_envelope * (np.max(correlation_data) / np.max(correlation_envelope)), alpha=0.5, color='r', label='Scaled signal envelope')
+            
+            fig2 = plt.figure()
+            ax = fig2.add_axes(111)
+            # ax.plot(lags, correlation_data, alpha=0.5, color='b', label='Scaled signal')
+            ax.plot(lags, correlation_envelope) #* (np.max(correlation_data) / np.max(correlation_envelope)), alpha=0.5, color='r', label='Scaled signal envelope')
             ax.set(xlabel=f"Indices of shift", ylabel="Correlation")
             ax.legend()
 
@@ -80,7 +166,6 @@ class Measurement:
             # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
             # TODO try to backpropagate signals to the tx?
 
-            # time_shift_data     = abs(lags[np.argmax(correlation_data)]) / base_signal.sample_frequency
             time_shift_envelope = abs(lags[np.argmax(correlation_envelope)]) / base_signal.sample_frequency
             time_shift_peaks    = abs(comparison_signal.peak_time[0] - base_signal.peak_time[0])
             # time_shift_waveform_start = abs(comparison_signal.time[comparison_signal.fft_start_index] - base_signal.time[base_signal.fft_start_index])
@@ -99,6 +184,7 @@ class Measurement:
             axtime2, axfrequency2 = Signal._plot_helper(base_signal, axtime2, axfrequency2, tlim, label=f"Base_sig ", colors=['c', 'blue'])
             axtime2, axfrequency2 = Signal._plot_helper(scaled_shifted_signal, axtime2, axfrequency2, tlim, label=f"Shifted_scaled_comp_sig{rx_index}", colors=['yellow', 'orange'])
 
+            # axtime2.vlines([second_peak_time], ymin=-np.max(np.abs(base_envelope_trimmed.amplitude_envelope)), ymax=np.max(np.abs(base_envelope_trimmed.amplitude_envelope)))
 
             plt.show()
 
@@ -123,35 +209,16 @@ class Measurement:
         if not valid:
             raise TypeError(reason)
 
-class DispersionCurve:
-
-    def __init__(self, modes):
-        self.modes = modes
-
-    
-    @staticmethod
-    def from_dlr_txts(path):
-        modes = []
-        for path in data_dir.glob('*.txt'):
-            curves = pd.read_csv(path)
-            
-            # In the exported csvs, "Attenuation" is always the last column of a mode
-            modes_in_class = sum([1 for col_name in curves.columns if "Attenuation" in col_name])
-            columns_per_mode = len(curves.columns) // modes_in_class
-            mode_freq_headers = curves.columns[0::columns_per_mode]
-            mode_phase_vel_headers = curves.columns[1::columns_per_mode]
-            # TODO make this work for anisotropic 
-            for i, mode_freq in enumerate(mode_freq_headers):
-                freq_vel = curves[[mode_freq, mode_phase_vel_headers[i]]].dropna()
-                freq_vel = freq_vel.sort_values(mode_freq)
-
-                spline = interpolate.CubicSpline(freq_vel[mode_freq], freq_vel[mode_phase_vel_headers[i]], extrapolate=False)
-                modes.append(spline)
         
 
 if __name__ == '__main__':
-    data_dir = pathlib.Path(__file__).parent / 'data' / 'dispersion_curves' / 's355j2_dispersion_curves'
-    print(data_dir)
+    dispersion_dir = pathlib.Path(__file__).parent / 'data' / 'dispersion_curves' / 'reference_alu_curves'
+    
+    dispersion = DispersionData()
+    for curves_file in dispersion_dir.glob('*.txt'):
+        dispersion.merge(DispersionData(curves_file))
+    print("Available modes:", dispersion.get_available_modes())
+
     
     # data_dir_ab = pathlib.Path(__file__).parent / 'data' / 'measurement_data'/ 'abaqus_test_steel'
     # sig = load_signals_abaqus(data_dir_ab)[0]
@@ -191,19 +258,33 @@ if __name__ == '__main__':
     # measurement.compare_signals(0, 2)
 
 
-    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "alu_test_plate" / "a_measurements_110khz"
-    avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={1, 40, 45, 46, 47, 48}, plot_outliers=False)
+    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "alu_test_plate" / "sh_measurements_120khz"
+    avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={40,45}, plot_outliers=False)
 
     avg_signals = [sig.zero_average_signal().bandpass(40e3, 80e3) for sig in avg_signals]
-    measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=avg_signals[-1], rx_signal=avg_signals[:-1])
-    measurement.compare_signals(0,2)
+    measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=avg_signals[-1], rx_signal=avg_signals[:-1], dispersion_curves=dispersion)
+    # measurement.compare_signals(1,2)
 
 
-    fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-    for i in range(len(avg_signals)):
-            axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
-    plt.show()
-
-
+    # fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+    # for i in range(len(avg_signals)):
+    #         axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
+    # plt.show()
 
     # avg_signals[2].get_stfft(1e-4)
+
+    new_signals = measurement.compensate_dispersion()
+
+    # fig2, (axtime2, axfrequency2) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+    # for i in range(len(new_signals)):
+    #         axtime2, axfrequency2 = Signal._plot_helper(new_signals[i], axtime2, axfrequency2,  label=f"sig{i}", plot_waveform=False)
+    
+    plt.show()
+
+    for i in range(len(avg_signals[:-1])):
+        sig_og = avg_signals[i]
+        sig_compensated = new_signals[i]
+        plt.plot(sig_og.time, sig_og.data, label="Original", alpha=0.5)
+        plt.plot(sig_compensated.time, sig_compensated.data, label="Compensated", alpha=0.5)
+        plt.legend()
+        plt.show()

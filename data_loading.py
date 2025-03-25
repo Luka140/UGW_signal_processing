@@ -69,7 +69,9 @@ def average_signals(initial_signals: list[list[Signal]], plot_outliers=True, tx_
             start_times[i] = time_offset
 
     # ---------------- Set start time to be consistent for each signal 
-    # TODO maybe instead just drop the ones that deviate a lot 
+    # TODO maybe instead just drop the ones that deviate a lot
+    # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
+ 
     # for i, _ in enumerate(signals):
     #     for ch in range(channels):
     #         signals[i][ch] = Signal(signals[i][ch].time - start_times[i], signals[i][ch].data, signals[i][ch].t_unit, signals[i][ch].d_unit)

@@ -18,9 +18,11 @@ class Signal:
         self._fft_output, self._fft_frequency, self._fft_magnitude  = None, None, None 
         self._fft_start_index                                       = None
         self._amplitude_envelope, self._instant_phase               = None, None
-        self._peak_time, self._peak_amplitude                       = None, None
+        self._peak_indices, self._peak_width                        = None, None
 
+        self._fft_pad_times     = 4         # Number of signal durations to zero pad for fft 
         self._peak_n            = 5         # Number of peaks to find    
+        self._fft_recalc_flag   = False 
         self._recalc_peak_flag  = False     # Signals that _peak_n changed -> recaulculate peaks
 
     def _calc_sample_frequency(self):
@@ -28,7 +30,8 @@ class Signal:
         sample_frequency = 1 / avg_sample_interval
         return sample_frequency
 
-    def get_fft(self, positive_half: bool = True, zero_pad_times=2):
+    def get_fft(self, positive_half: bool = True):
+        self._fft_recalc_flag = False
         avg_sample_interval = 1 / self.sample_frequency
 
         # Clip off start for better fit
@@ -46,8 +49,8 @@ class Signal:
 
 
         # Zero padding increases the granularity of the frequency domain (not actual resolution)
-        if zero_pad_times > 1: 
-            interval_data = np.concat((interval_data, np.zeros_like(interval_data)))
+        if self._fft_pad_times > 1: 
+            interval_data = np.concat((interval_data, np.zeros(interval_data.size * self._fft_pad_times)))
 
         fft_output = fft.fft(interval_data)
         clipped_samples = len(interval_data)
@@ -63,29 +66,32 @@ class Signal:
 
     @property
     def fft_frequency(self):
-        if self._fft_frequency is None:
+        if self._fft_frequency is None or self._fft_recalc_flag:
             self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
         return self._fft_frequency
 
     @property
     def fft_magnitude(self):
-        if self._fft_magnitude is None:
+        if self._fft_magnitude is None or self._fft_recalc_flag:
             self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
         return self._fft_magnitude
     
     @property
     def fft_start_index(self):
-        if self._fft_output is None:
+        if self._fft_output is None or self._fft_recalc_flag:
             self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
         return self._fft_start_index
 
     @property
     def fft_output(self):
-        if self._fft_output is None:
+        if self._fft_output is None or self._fft_recalc_flag:
             self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
         return self._fft_output
-
-
+    
+    def set_fft_pad_times(self, n):
+        self._fft_pad_times = n
+        self._fft_recalc_flag = True 
+    
     def _get_signal_envelope(self):
         analytic_signal = spsignal.hilbert(self.data)
         amplitude_envelope = np.abs(analytic_signal)
@@ -104,7 +110,7 @@ class Signal:
             self._amplitude_envelope, self._instant_phase, _ = self._get_signal_envelope()
         return self._instant_phase
 
-    def _get_envelope_peaks(self):
+    def _get_envelope_peak_idxs(self):
         self._recalc_peak_flag = False
         peak_idx, peak_properties = spsignal.find_peaks(self.amplitude_envelope)
         prominence, *_ = spsignal.peak_prominences(self.amplitude_envelope, peak_idx)
@@ -112,20 +118,26 @@ class Signal:
         # These are the idx in the prominence/peak array, not in the data array! [0] is the first peak idx, not data[0]
         n_most_prominent_peak_idx = np.argsort(prominence)[-self._peak_n:][::-1] # Sorted from most prominent to least prominent
 
-        return self.time[peak_idx[n_most_prominent_peak_idx]], self.amplitude_envelope[peak_idx[n_most_prominent_peak_idx]]
+        return peak_idx[n_most_prominent_peak_idx]
 
     @property
     def peak_time(self):
-        if self._peak_time is None or self._recalc_peak_flag:
-            self._peak_time, self._peak_amplitude = self._get_envelope_peaks()
-        return self._peak_time
+        if self._peak_indices is None or self._recalc_peak_flag:
+            self._peak_indices = self._get_envelope_peak_idxs()
+        return self.time[self._peak_indices]
 
     @property
     def peak_amplitude(self):
-        if self._peak_amplitude is None or self._recalc_peak_flag:
-            self._peak_time, self._peak_amplitude = self._get_envelope_peaks()
-        return self._peak_amplitude
+        if self._peak_indices is None or self._recalc_peak_flag:
+            self._peak_indices = self._get_envelope_peak_idxs()
+        return self.amplitude_envelope[self._peak_indices]
     
+    @property 
+    def peak_width(self):
+        if self._peak_width is None or self._recalc_peak_flag:
+            self._peak_width = spsignal.peak_widths(self.amplitude_envelope, self._peak_indices, rel_height=.7)
+        return self._peak_width
+
     def set_max_peak_number(self, n):
         self._peak_n = n
         self._recalc_peak_flag = True
@@ -202,7 +214,7 @@ class Signal:
         plt.show()
 
     @staticmethod
-    def _plot_helper(signal: "Signal", axt, axf, tlim=None, label="", colors=None, plot_envelope=True, plot_waveform=True):
+    def _plot_helper(signal: "Signal", axt, axf, tlim=None, label="", colors=None, plot_envelope=True, plot_waveform=True, plot_peak_width=False):
 
         # Set default colors if not provided
         waveform_color = colors[0] if colors else None
@@ -224,6 +236,11 @@ class Signal:
                  [-np.max(signal.peak_amplitude), np.max(signal.peak_amplitude)], '-.', color='black', label=f'{label} FFT start time')
         axt.set(xlabel=f'Time ({signal.t_unit})', ylabel=f'{label} Signal ({signal.d_unit})')
         axt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
+
+        # ------- Plot peak widths 
+        if plot_peak_width:
+            axt.hlines(signal.peak_width[1], signal.time[np.int32(signal.peak_width[2])], signal.time[np.int32(signal.peak_width[3])])
+
         if tlim is not None:
             axt.xlim(tlim)
         axt.legend()
