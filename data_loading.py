@@ -59,24 +59,30 @@ def average_signals(initial_signals: list[list[Signal]], plot_outliers=True, tx_
     channels = len(signals[0])
     
     # ---------------- Find consistent start time based on tx channel
-    start_times = [0.] * len(signals)
-    if tx_ch is not None:
-        for i, measurement in enumerate(signals):
-            tx_signal = measurement[tx_ch]
-            # TODO detect clipping waveform. If this is the case, detect based on another metric
-            start_index = np.argmax(tx_signal.amplitude_envelope)
-            time_offset = tx_signal.time[start_index]
-            start_times[i] = time_offset
+    # start_times = [0.] * len(signals)
+    # if tx_ch is not None:
+    #     for i, measurement in enumerate(signals):
+    #         tx_signal = measurement[tx_ch]
+    #         # TODO detect clipping waveform. If this is the case, detect based on another metric
+    #         start_index = np.argmax(tx_signal.amplitude_envelope)
+    #         time_offset = tx_signal.time[start_index]
+    #         print(time_offset)
+    #         tx_signal.plot()
+    #         # plt.axvline(time_offset, color='red')
+    #         # plt.show()
+    #         start_times[i] = time_offset
 
-    # ---------------- Set start time to be consistent for each signal 
-    # TODO maybe instead just drop the ones that deviate a lot
-    # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
-    # TODO maybe base t=0 on initial threshold crossing
+    # # ---------------- Set start time to be consistent for each signal 
+    # # TODO maybe instead just drop the ones that deviate a lot
+    # # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
+    # # TODO maybe base t=0 on initial threshold crossing
 
     # for i, _ in enumerate(signals):
     #     for ch in range(channels):
     #         signals[i][ch] = Signal(signals[i][ch].time - start_times[i], signals[i][ch].data, signals[i][ch].t_unit, signals[i][ch].d_unit)
-            
+    ########################################################
+
+
     # ---------------- Create consistent grid of times that are available for each signal 
     min_time, max_time = max([sig[ch].time[0] for sig in signals for ch in range(channels)]), min([sig[ch].time[-1] for sig in signals for ch in range(channels)])
     common_time = np.linspace(min_time, max_time, int(signals[0][0].time.size)) # Set number of datapoints based on first measurement first channel. They should all be the same.
