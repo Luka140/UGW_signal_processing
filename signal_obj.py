@@ -89,6 +89,11 @@ class Signal:
             self._fft_output, self._fft_frequency, self._fft_magnitude, self._fft_start_index = self.get_fft()
         return self._fft_output
     
+    @property
+    def characteristic_frequency(self):
+        return np.sum(self.fft_magnitude * self.fft_frequency) / np.sum(self.fft_magnitude)
+
+    
     def set_fft_pad_times(self, n):
         self._fft_pad_times = n
         self._fft_recalc_flag = True 
