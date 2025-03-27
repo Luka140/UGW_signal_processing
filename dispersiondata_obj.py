@@ -195,7 +195,76 @@ class DispersionData:
             if header_lower in col.lower():
                 return col
         return None
-
+    
+    def get_value(self, mode: Union[str, Tuple[str]], frequency: float, target_header: str, 
+             interpolation: str = 'linear') -> Union[float, Tuple[float]]:
+        """
+        Get a value from a specified column at a given frequency for one or more modes.
+        
+        Args:
+            mode (Union[str, Tuple[str]]): Mode identifier or tuple of identifiers (e.g., 'A0', ('A0', 'S1'))
+            frequency (float): Frequency in kHz to query
+            target_header (str): Header of the column to get value from
+            interpolation (str): Interpolation method ('linear', 'nearest', 'spline')
+                            Default is 'linear'
+                            
+        Returns:
+            Union[float, Tuple[float]]: The interpolated value(s) at the specified frequency
+            
+        Raises:
+            ValueError: If mode(s) or headers aren't found
+        """
+        # Handle single mode vs tuple of modes
+        if isinstance(mode, str):
+            modes = [mode]
+            return_tuple = False
+        else:
+            modes = mode
+            return_tuple = True
+        
+        results = []
+        for current_mode in modes:
+            # Get mode data
+            mode_data = self.get_mode_data(current_mode)
+            if mode_data is None:
+                raise ValueError(f"Mode '{current_mode}' not found in dataset")
+            
+            # Find frequency column
+            freq_col = self._find_matching_column(mode_data.columns, 'f (kHz)')
+            if freq_col is None:
+                raise ValueError(f"Frequency column not found in mode '{current_mode}' data")
+            
+            # Find target column
+            target_col = self._find_matching_column(mode_data.columns, target_header)
+            if target_col is None:
+                raise ValueError(f"Target header '{target_header}' not found in mode '{current_mode}' data")
+            
+            # Extract data
+            freq_data = mode_data[freq_col].values
+            target_data = mode_data[target_col].values
+            
+            # Remove NaN values
+            mask = ~np.isnan(freq_data) & ~np.isnan(target_data)
+            freq_data = freq_data[mask]
+            target_data = target_data[mask]
+            
+            if len(freq_data) == 0:
+                raise ValueError(f"No valid data points available for mode '{current_mode}'")
+            
+            # Handle interpolation
+            if interpolation == 'nearest':
+                idx = np.argmin(np.abs(freq_data - frequency))
+                results.append(target_data[idx])
+            elif interpolation == 'linear':
+                results.append(np.interp(frequency, freq_data, target_data))
+            elif interpolation == 'spline':
+                from scipy import interpolate
+                spline = interpolate.CubicSpline(freq_data, target_data, extrapolate=False)
+                results.append(spline(frequency))
+            else:
+                raise ValueError(f"Unknown interpolation method: {interpolation}")
+        
+        return tuple(results) if return_tuple else results[0]
 
 
 # class DispersionCurve:
