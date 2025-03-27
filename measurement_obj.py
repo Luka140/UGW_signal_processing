@@ -4,6 +4,7 @@ import scipy.interpolate as interpolate
 import scipy.signal as spsignal 
 import matplotlib.pyplot as plt 
 import numpy as np 
+import scipy.fft as spfft 
 from typing import Collection
 from signal_obj import Signal 
 from data_loading import load_signals_abaqus, load_signals_SINTEG
@@ -30,30 +31,35 @@ class Measurement:
         self.dispersion_curves = dispersion_curves
 
     def _remove_dispersion_known_distance(self, signal_obj: Signal, k_omega, omega_0, distance):
-        """
-        Based on: A Linear Mapping Technique for Dispersion Removal of Lamb Waves (L. Liu and F. G. Yuan)
-        """
-
-        # TODO I think for this to work, t=0 needs to be set correctly
         n = len(signal_obj.data)
-        pad_times = 4
+        
+       # TODO I think for this to work, t=0 needs to be set correctly
+
+        # Add zero-padding to improve frequency resolution
+        n_pad = 4 * n  # Pad to 4x original length
+        padded_signal = np.pad(signal_obj.data, (0, n_pad - n), 'constant')
         
         dt = 1 / signal_obj.sample_frequency
-        # Set to pad 8x signal length for fft
-        signal_obj.set_fft_pad_times(pad_times)
-        signal_obj.plot()
-        fft_signal = signal_obj.fft_output
-        freqs      = np.fft.fftfreq(n * (pad_times + 1), dt) * 2 * np.pi
-                
-        # Compute k2 = ½ * d²k/dω²
-        dk_domega = np.gradient(k_omega[:,1], k_omega[:,0]) 
-        dk2_domega = np.gradient(dk_domega, k_omega[:,0]) / 2
-        k2_interp = interpolate.interp1d(k_omega[:,0], dk2_domega, kind='cubic', fill_value=0)
+        fft_signal = np.fft.fft(padded_signal)
+        freqs = np.fft.fftfreq(n_pad, dt) * 2 * np.pi  # Use padded length
+        
+        # Compute k2 = ½ * d²k/dω² (corrected numerical derivatives)
+        omega_uniform = np.linspace(np.min(k_omega[:,0]), np.max(k_omega[:,0]), k_omega.shape[0])
+        
+        kinterp = interpolate.interp1d(k_omega[:,0], k_omega[:,1], kind='cubic')
+        k_uniform = kinterp(omega_uniform)
+        dk_domega = np.gradient(k_uniform, omega_uniform)
+        dk2_domega = np.gradient(dk_domega, omega_uniform) / 2
+        
+        # dk_domega = np.gradient(k_omega[:,1], k_omega[:,0])  # Use interpolated k values
+        # dk2_domega = np.gradient(dk_domega, k_omega[:,0]) / 2
+        
+        k2_interp = interpolate.interp1d(omega_uniform, dk2_domega, kind='cubic', fill_value=0)
         
         # Apply phase correction to entire bandwidth
         modified_spectrum = fft_signal.copy()
         
-        # Get sigk2_interpnal's dominant frequency range (e.g., ±3σ around ω₀)
+        # Get signal's dominant frequency range (e.g., ±3σ around ω₀)
         bandwidth = 3 * (omega_0 / 10)  # Adjust based on your signal
         omega_mask = (freqs >= omega_0 - bandwidth) & (freqs <= omega_0 + bandwidth)
         
@@ -64,38 +70,20 @@ class Measurement:
         modified_spectrum[omega_mask] *= np.exp(
             1j * k2_interp(freqs[omega_mask]) * (freqs[omega_mask] - omega_0)**2 * distance
         )
+
+        # ------ Plot for debugging 
+        # phase_term = k2_interp(freqs[omega_mask]) * (freqs[omega_mask] - omega_0)**2 * distance
+        # plt.plot(freqs[omega_mask], phase_term)
+        # plt.title("Applied Phase Correction")
+        # plt.show()
+
         
         # Inverse FFT and remove padding
         compensated_signal = np.fft.ifft(modified_spectrum)[:n]  # Truncate to original length
         return np.real(compensated_signal)
 
-    # def _remove_dispersion_known_distance(self, signal_obj: Signal, k_omega, omega_0, distance):
-    #     """
-    #     Based on: A Linear Mapping Technique for Dispersion Removal of Lamb Waves (L. Liu and F. G. Yuan)
-    #     """
-    #     n = len(signal_obj.data)
-    #     dt = 1 / signal_obj.sample_frequency
-    #     fft_signal = np.fft.fft(signal_obj.data)
-    #     freqs = np.fft.fftfreq(n, dt) * 2 * np.pi  # Get angular frequencies
-        
-    #     # Interpolate dispersion relation
-    #     # k_interp = interpolate.interp1d(k_omega[:,0], k_omega[:,1], kind='cubic')
-        
-    #     # Compute k2 (second derivative)
-    #     dk_domega  = np.gradient(k_omega[:,1], k_omega[:,0])
-    #     dk2_domaga = np.gradient(dk_domega, k_omega[:,0])/2
-    #     k2_interp = interpolate.interp1d(k_omega[:,0], dk2_domaga, kind='cubic', fill_value=0)
-        
-    #     # Apply phase correction (Equation 15)
-    #     omega_mask = (freqs > 0.1*omega_0) & (freqs < 2*omega_0)  # Avoid DC and Nyquist
-    #     modified_spectrum = np.zeros_like(fft_signal, dtype=complex)
-    #     modified_spectrum[omega_mask] = fft_signal[omega_mask] * \
-    #         np.exp(1j * k2_interp(freqs[omega_mask]) * (freqs[omega_mask] - omega_0)**2 * distance)
-        
-    #     compensated_signal = np.fft.ifft(modified_spectrum)
-    #     return np.real(compensated_signal)
     
-    def compensate_dispersion(self, center_frequency = 60e3, mode='SSH0'):
+    def compensate_dispersion(self, center_frequency, mode):
 
         omega0 = center_frequency * 2 * np.pi 
         compensated_signals = []
@@ -104,8 +92,8 @@ class Measurement:
             curves = self.dispersion_curves.get_dispersion_curves(frequency_range=(0, center_frequency * 3 /1000))
             k_omega = curves[mode][['f (kHz)','Wavenumber (rad/mm)']].to_numpy(dtype=float)
             # Convert to angular frequency and base units 
-            k_omega[:,0] *= 2 * np.pi * 1000
-            k_omega[:,1] *= 1000
+            k_omega[:,0] *= 2 * np.pi * 1000 
+            k_omega[:,1] *= 1000 
             # TODO unit conversions in dispersiondata object 
             
             new_signal_data = self._remove_dispersion_known_distance(self.received_signals[i], k_omega, omega0, distance)
@@ -160,7 +148,6 @@ class Measurement:
             # ax.plot(lags, correlation_data, alpha=0.5, color='b', label='Scaled signal')
             ax.plot(lags, correlation_envelope) #* (np.max(correlation_data) / np.max(correlation_envelope)), alpha=0.5, color='r', label='Scaled signal envelope')
             ax.set(xlabel=f"Indices of shift", ylabel="Correlation")
-            ax.legend()
 
             # TODO can this be improved by correlating raw analytical complex signal rather than envelope??
             # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
@@ -168,15 +155,15 @@ class Measurement:
 
             time_shift_envelope = abs(lags[np.argmax(correlation_envelope)]) / base_signal.sample_frequency
             time_shift_peaks    = abs(comparison_signal.peak_time[0] - base_signal.peak_time[0])
-            # time_shift_waveform_start = abs(comparison_signal.time[comparison_signal.fft_start_index] - base_signal.time[base_signal.fft_start_index])
+            time_shift_waveform_start = abs(comparison_signal.time[comparison_signal.fft_start_index] - base_signal.time[base_signal.fft_start_index])
 
             # print(f"\nToF for max correlation of scaled signal: {time_shift_data:2e} {base_signal.t_unit}")
             print(f'\nTof for max correlation of scaled envelope: {time_shift_envelope:.2e} {base_signal.t_unit}')
             print(f"ToF based on first envelope peaks: {time_shift_peaks:.2e} {base_signal.t_unit}")
-            # print(f"ToF based on 2% threshold crossing: {time_shift_waveform_start:.2e} {base_signal.t_unit}")
+            print(f"ToF based on 2% threshold crossing: {time_shift_waveform_start:.2e} {base_signal.t_unit}")
             distance = np.linalg.norm(self.receiver_positions[base_index] - self.receiver_positions[rx_index])
             print(f"Distance travelled {distance}")
-            print(f"Wave velocity: {distance / (time_shift_envelope+1e-14):.2f} (corr. scaled envelope) - {distance / (time_shift_peaks+1e-14):.2f} (peaks)")
+            print(f"Wave velocity: {distance / (time_shift_envelope+1e-14):.2f} (corr. scaled envelope) - {distance / (time_shift_peaks+1e-14):.2f} (peaks) - {distance / time_shift_waveform_start+1e-14:.2f} (Initial threshold)")
 
             fig, (axtime2, axfrequency2) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
             axtime2.set(title="Shifted signals according to envelope correlation")
@@ -229,24 +216,24 @@ if __name__ == '__main__':
     # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "measurements_90"
     # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={33}, plot_outliers=True)
     
-    # avg_signals = [sig.zero_average_signal().bandpass(30e3, 90e3) for sig in avg_signals]
-    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], avg_signals[-1], avg_signals[:-1], modes)
-    # measurement.compare_signals(1, 2)
+    # avg_signals = [sig.zero_average_signal().bandpass(50e3, 70e3) for sig in avg_signals]
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], avg_signals[-1], avg_signals[:-1])
+    # measurement.compare_signals(0, 2)
 
 
     # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "longer_measurements_1"
     # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={}, plot_outliers=True)
 
-    # avg_signals = [sig.zero_average_signal().bandpass(30e3, 90e3) for sig in avg_signals]
+    # avg_signals = [sig.zero_average_signal().bandpass(50e3, 70e3) for sig in avg_signals]
     # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (182e-3, 0.)], avg_signals[-1], avg_signals[:-1])
-    # measurement.compare_signals(1, 2)
+    # measurement.compare_signals(0, 1)
 
 
     # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "GFRP_test_plate_SINTEG" / "longer_measurements_2"
     # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={}, plot_outliers=False)
 
-    # avg_signals = [sig.zero_average_signal().bandpass(30e3, 90e3) for sig in avg_signals]
-    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (305e-3, 0.)], avg_signals[-1], avg_signals[:-1], modes)
+    # avg_signals = [sig.zero_average_signal().bandpass(50e3, 70e3) for sig in avg_signals]
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (305e-3, 0.)], avg_signals[-1], avg_signals[:-1])
     # measurement.compare_signals(1, 2)
 
 
@@ -258,33 +245,41 @@ if __name__ == '__main__':
     # measurement.compare_signals(0, 2)
 
 
-    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "alu_test_plate" / "sh_measurements_120khz"
+    # data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "alu_test_plate" / "sh_measurements_120khz"
+    # avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={40,45}, plot_outliers=False)
+
+    # avg_signals = [sig.zero_average_signal().bandpass(40e3, 80e3) for sig in avg_signals]
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=avg_signals[-1], rx_signal=avg_signals[:-1], dispersion_curves=dispersion)
+    # measurement.compare_signals(0,2)
+
+    data_sinteg = pathlib.Path(__file__).parent / "data" / "measurement_data" / "alu_test_plate" / "a_measurements_120khz"
     avg_signals = load_signals_SINTEG(data_sinteg, skip_idx={40,45}, plot_outliers=False)
 
-    avg_signals = [sig.zero_average_signal().bandpass(40e3, 80e3) for sig in avg_signals]
+    avg_signals = [sig.zero_average_signal().bandpass(40e3, 80e3, order=2) for sig in avg_signals]
     measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=avg_signals[-1], rx_signal=avg_signals[:-1], dispersion_curves=dispersion)
-    # measurement.compare_signals(1,2)
+    measurement.compare_signals(0,2)
+    new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
 
 
-    # fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-    # for i in range(len(avg_signals)):
-    #         axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
-    # plt.show()
-
-    # avg_signals[2].get_stfft(1e-4)
-
-    new_signals = measurement.compensate_dispersion()
+    
+    # for i in range(len(avg_signals[:-1])):
+    #     sig_og = avg_signals[i]
+    #     sig_compensated = new_signals[i]
+    #     plt.plot(sig_og.time, sig_og.data, label="Original", alpha=0.5)
+    #     plt.plot(sig_compensated.time, sig_compensated.data, label="Compensated", alpha=0.5)
+    #     plt.legend()
+    #     plt.show()
 
     # fig2, (axtime2, axfrequency2) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
     # for i in range(len(new_signals)):
     #         axtime2, axfrequency2 = Signal._plot_helper(new_signals[i], axtime2, axfrequency2,  label=f"sig{i}", plot_waveform=False)
-    
-    plt.show()
+    # plt.legend()
+    # plt.show()
 
-    for i in range(len(avg_signals[:-1])):
-        sig_og = avg_signals[i]
-        sig_compensated = new_signals[i]
-        plt.plot(sig_og.time, sig_og.data, label="Original", alpha=0.5)
-        plt.plot(sig_compensated.time, sig_compensated.data, label="Compensated", alpha=0.5)
-        plt.legend()
-        plt.show()
+    avg_signals[2].get_stfft(1e-4)
+
+    # ------------ CHECK ORDER OF ARIVAL
+    fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+    for i in range(len(avg_signals)):
+            axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
+    plt.show()
