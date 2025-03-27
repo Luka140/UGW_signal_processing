@@ -50,7 +50,8 @@ class Signal:
 
         # Zero padding increases the granularity of the frequency domain (not actual resolution)
         if self._fft_pad_times > 1: 
-            interval_data = np.concat((interval_data, np.zeros(interval_data.size * self._fft_pad_times)))
+            interval_data = np.pad(interval_data, (0, (self._fft_pad_times - 1) * len(interval_data)), 'constant')
+            # interval_data = np.concat((interval_data, np.zeros(interval_data.size * self._fft_pad_times)))
 
         fft_output = fft.fft(interval_data)
         clipped_samples = len(interval_data)
