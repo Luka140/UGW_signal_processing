@@ -71,7 +71,8 @@ def average_signals(initial_signals: list[list[Signal]], plot_outliers=True, tx_
     # ---------------- Set start time to be consistent for each signal 
     # TODO maybe instead just drop the ones that deviate a lot
     # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
- 
+    # TODO maybe base t=0 on initial threshold crossing
+
     # for i, _ in enumerate(signals):
     #     for ch in range(channels):
     #         signals[i][ch] = Signal(signals[i][ch].time - start_times[i], signals[i][ch].data, signals[i][ch].t_unit, signals[i][ch].d_unit)
@@ -119,17 +120,27 @@ def average_signals(initial_signals: list[list[Signal]], plot_outliers=True, tx_
             [outlier_idxs.append((outlier, channel_idx)) for outlier in outliers[0]]  
     
     if plot_outliers and len(outlier_idxs) > 0:
-        for outlier_index in set(np.array(outlier_idxs)[:,0]):   
-            fig, axs = plt.subplots(channels // 2, 2, figsize=(12, 8))  # Create a 2x2 grid of subplots
+        for outlier_index in set(np.array(outlier_idxs)[:,0]):
+            # Determine the grid layout based on number of channels
+            if channels <= 2:
+                rows, cols = 1, channels
+            else:
+                rows, cols = 2, 2
+            
+            fig, axs = plt.subplots(rows, cols, figsize=(12, 8))
             fig.suptitle(f"Outlier signals vs Averages (measurement index: {outlier_index})")
-
+            
+            # Flatten axs array for easier indexing when it's 2D
+            if channels > 1:
+                axs = axs.ravel()
+            
             for ch in range(channels):
-                row, col = ch // 2, ch % 2  # Determine subplot position
-                if len(axs.shape) > 1:
-                    ax = axs[row, col]
+                # For single channel case
+                if channels == 1:
+                    ax = axs
                 else:
-                    ax = axs[col]
-
+                    ax = axs[ch]
+                
                 # Plot individual signals
                 ax.plot(common_time, interpolated_channels[ch][outlier_index], color='red', label='Outlier signal' if ch == 0 else "")
 
@@ -160,7 +171,7 @@ def load_signals_abaqus(path, t_unit=None, d_unit=None):
 
     return signals
 
-def load_signals_SINTEG(directory:pathlib.Path, sample_frequency=1e6, skip_idx={}, plot_outliers=False, tx_ch=-1):
+def load_signals_SINTEG(directory:pathlib.Path, sample_frequency=1e6, skip_idx={}, plot_outliers=False, tx_ch=-1, average=True, skip_ch=()):
     """Load 4 channel signals from the SINTEG acquisition setup.
 
     Args:
@@ -173,6 +184,9 @@ def load_signals_SINTEG(directory:pathlib.Path, sample_frequency=1e6, skip_idx={
     sample_spacing = 1 / sample_frequency
     signals = []
     data_files = [path for path in directory.glob("*.txt") if 'read' not in path.name.lower()]
+    if len(data_files) == 0:
+        raise FileNotFoundError(f"No data files found in {directory}")
+    
     for i, path in enumerate(data_files):
         if i in skip_idx:
             continue
@@ -182,10 +196,16 @@ def load_signals_SINTEG(directory:pathlib.Path, sample_frequency=1e6, skip_idx={
         time = np.arange(0, samples * sample_spacing, sample_spacing)
 
         for i in range(data.shape[1]):
+            if i in skip_ch:
+                continue
             measurement_channels.append(Signal(time, data[:,i], t_unit='s', d_unit='micro_v').zero_average_signal())
         # [signal.plot() for signal in measurement_channels]
         signals.append(measurement_channels)
-    return average_signals(signals, plot_outliers=plot_outliers, tx_ch=tx_ch)
+    
+    if average:
+        return average_signals(signals, plot_outliers=plot_outliers, tx_ch=tx_ch)
+    else:
+        return signals
 
 
 
