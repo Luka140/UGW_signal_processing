@@ -13,23 +13,130 @@ from dispersiondata_obj import DispersionData
 
 class Measurement:
     def __init__(self, tx_pos, 
-                 rx_pos: Collection[Collection[float]] | Collection[float] , 
+                 rx_pos: Collection[Collection[float]] | Collection[float], 
                  tx_signal: Signal,
-                 rx_signal: Collection[Signal]| Signal, 
-                 dispersion_curves: None|DispersionData=None):
-        # TODO allow measurement with / without tx signal
-        # TODO and allow for comparisons to tx signal
+                 rx_signal: Collection[Signal] | Signal, 
+                 dispersion_curves: None | DispersionData = None):
         self._valid_input(rx_signal, rx_pos)
 
         self.transmitter_position = np.array(tx_pos)
         self.transmitted_signal = tx_signal
         self.received_signals = rx_signal
         
-        if type(rx_signal) != Signal:
+        # Store positions appropriately based on input type
+        if isinstance(rx_signal, Signal):
+            self.receiver_positions = [np.array(rx_pos)]
+        else:
             self.receiver_positions = [np.array(pos) for pos in rx_pos]
 
         self.dispersion_curves = dispersion_curves
 
+    def compare_signals(self, base_index: int | str = 0, comparison_indices: int | Collection[int] = None, tlim=None, mode='signal', plot_correlation=False):
+        """
+        Compare signals with options to use transmitted signal as reference.
+        
+        Parameters:
+        - base_index: Either 'tx' to use transmitted signal as reference, or an int for receiver index
+        - comparison_indices: Receiver indices to compare against base signal
+        """
+        # Handle default case where we want to compare all received signals to tx
+        if comparison_indices is None:
+            if isinstance(self.received_signals, Signal):
+                comparison_indices = [0]
+            else:
+                comparison_indices = range(len(self.received_signals))
+
+        if isinstance(comparison_indices, int):
+            comparison_indices = [comparison_indices]
+
+        # Get base signal
+        if base_index == 'tx':
+            base_signal = self.transmitted_signal
+            base_pos = self.transmitter_position
+        else:
+            base_signal = self.received_signals[base_index]
+            base_pos = self.receiver_positions[base_index]
+
+        for rx_index in comparison_indices:
+            comparison_signal = self.received_signals[rx_index]
+            comp_pos = self.receiver_positions[rx_index]
+
+            scaling_factor = np.max(base_signal.amplitude_envelope) / np.max(comparison_signal.amplitude_envelope)
+            scaled_signal = Signal(comparison_signal.time,
+                                 comparison_signal.data * scaling_factor,
+                                 comparison_signal.t_unit, 
+                                 comparison_signal.d_unit)
+
+            fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+            axtime, axfrequency = Signal._plot_helper(base_signal, axtime, axfrequency, tlim, 
+                                                     label=f"Base_sig {'tx' if base_index == 'tx' else base_index}", 
+                                                     colors=['c', 'blue'])
+            axtime, axfrequency = Signal._plot_helper(scaled_signal, axtime, axfrequency, tlim, 
+                                                    label=f"Scaled_comp_sig{rx_index}", 
+                                                    colors=['yellow', 'orange'])
+
+            # Correlation calculations
+            correlation_envelope = spsignal.correlate(base_signal.amplitude_envelope, 
+                                                    scaled_signal.amplitude_envelope, 
+                                                    mode="full")
+            lags = spsignal.correlation_lags(base_signal.data.size, 
+                                           scaled_signal.data.size, 
+                                           mode="full")
+            if plot_correlation:
+                fig2 = plt.figure()
+                ax = fig2.add_axes(111)
+                ax.plot(lags, correlation_envelope)
+                ax.set(xlabel=f"Indices of shift", ylabel="Correlation")
+
+            # Time shift calculations
+            time_shift_envelope = abs(lags[np.argmax(correlation_envelope)]) / base_signal.sample_frequency
+            time_shift_peaks = abs(comparison_signal.peak_time[0] - base_signal.peak_time[0])
+            time_shift_waveform_start = abs(comparison_signal.time[comparison_signal.fft_start_index] - 
+                                          base_signal.time[base_signal.fft_start_index])
+
+            print(f'\nToF for max correlation of scaled envelope: {time_shift_envelope:.2e} {base_signal.t_unit}')
+            print(f"ToF based on max envelope peaks: {time_shift_peaks:.2e} {base_signal.t_unit}")
+            print(f"ToF based on 2% threshold crossing: {time_shift_waveform_start:.2e} {base_signal.t_unit}")
+            
+            distance = np.linalg.norm(base_pos - comp_pos)
+            print(f"Distance travelled: {distance}")
+            print(f"Wave velocity: {distance / (time_shift_envelope+1e-14):.2f} (corr. scaled envelope) - "
+                 f"{distance / (time_shift_peaks+1e-14):.2f} (peaks) - "
+                 f"{distance / (time_shift_waveform_start+1e-14):.2f} (Initial threshold)")
+
+            if "ASH0" in self.dispersion_curves.get_available_modes():
+                sh0_tag = "ASH0"
+            elif "SSH0" in self.dispersion_curves.get_available_modes():
+                sh0_tag = "SSH0"
+            else:
+                raise ValueError("No SH0 mode found in dispersion curves")
+            
+            print(f"\nCharacteristic frequency base signal: {base_signal.characteristic_frequency/10**3:.2f} kHz")
+            base_vg_a0, base_vg_s0, base_vg_sh0 = self.dispersion_curves.get_value(("A0", "S0", sh0_tag), base_signal.characteristic_frequency/10**3, target_header="Energy velocity")
+            print(f"Energy velocity dispersion curve - A0: {base_vg_a0:.2f} m/ms, S0: {base_vg_s0:.2f} m/ms, {sh0_tag}: {base_vg_sh0:.2f} m/ms")
+
+            print(f"\nCharacteristic frequency comp signal: {comparison_signal.characteristic_frequency/10**3:.2f} kHz")
+            comp_vg_a0, comp_vg_s0, comp_vg_sh0 = self.dispersion_curves.get_value(("A0", "S0", sh0_tag), comparison_signal.characteristic_frequency/10**3, target_header="Energy velocity")
+            print(f"Energy velocity dispersion curve - A0: {comp_vg_a0:.2f} m/ms, S0: {comp_vg_s0:.2f} m/ms, {sh0_tag}: {comp_vg_sh0:.2f} m/ms")
+
+            if plot_correlation:
+                # Plot shifted signals
+                fig, (axtime2, axfrequency2) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+                axtime2.set(title="Shifted signals according to envelope correlation")
+                scaled_shifted_signal = Signal(scaled_signal.time - time_shift_envelope, 
+                                            scaled_signal.data, 
+                                            scaled_signal.t_unit, 
+                                            scaled_signal.d_unit)
+                axtime2, axfrequency2 = Signal._plot_helper(base_signal, axtime2, axfrequency2, tlim, 
+                                                        label=f"Base_sig {'tx' if base_index == 'tx' else base_index}", 
+                                                        colors=['c', 'blue'])
+                axtime2, axfrequency2 = Signal._plot_helper(scaled_shifted_signal, axtime2, axfrequency2, tlim, 
+                                                        label=f"Shifted_scaled_comp_sig{rx_index}", 
+                                                        colors=['yellow', 'orange'])
+
+            plt.show()
+
+    
     def _remove_dispersion_known_distance(self, signal_obj: Signal, k_omega, omega_0, distance):
         n = len(signal_obj.data)
         
@@ -99,81 +206,6 @@ class Measurement:
             new_signal_data = self._remove_dispersion_known_distance(self.received_signals[i], k_omega, omega0, distance)
             compensated_signals.append(Signal(self.received_signals[i].time, new_signal_data, self.received_signals[i].t_unit, self.received_signals[i].d_unit)) 
         return compensated_signals
-
-
-
-    def compare_signals(self, base_index: int, comparison_indices: int | Collection[int], tlim=None, mode='signal'):
-        if type(comparison_indices) == int:
-            comparison_indices = [comparison_indices]
-
-        base_signal = self.received_signals[base_index]
-
-        for rx_index in comparison_indices:
-            comparison_signal = self.received_signals[rx_index]
-
-            scaling_factor = np.max(base_signal.amplitude_envelope) / np.max(comparison_signal.amplitude_envelope)
-            scaled_signal = Signal(comparison_signal.time,comparison_signal.data * scaling_factor,comparison_signal.t_unit, comparison_signal.d_unit)
-
-            fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-            axtime, axfrequency = Signal._plot_helper(base_signal, axtime, axfrequency, tlim, label=f"Base_sig ", colors=['c', 'blue'])
-            axtime, axfrequency = Signal._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Scaled_comp_sig{rx_index}", colors=['yellow', 'orange'])
-
-
-            # ----------------------Get the time of the second peak for both signals
-                    # base_second_peak_time = np.sort(base_signal.peak_time)[1]   if len(base_signal.peak_time)   > 1 else base_signal.time[-1]
-                    # comp_second_peak_time = np.sort(scaled_signal.peak_time)[1] if len(scaled_signal.peak_time) > 1 else scaled_signal.time[-1]
-                    # second_peak_time = max(base_second_peak_time, comp_second_peak_time)
-
-                    # # Trim the signals up to their second peaks
-                    # base_envelope_trimmed = base_signal.get_trimmed_signal(0, second_peak_time)
-                    # comp_envelope_trimmed = scaled_signal.get_trimmed_signal(0, second_peak_time)
-                    
-                    # # Calculate correlation using only the trimmed portions
-                    # correlation_envelope = spsignal.correlate(base_envelope_trimmed.amplitude_envelope, comp_envelope_trimmed.amplitude_envelope, mode="full")
-                    # lags = spsignal.correlation_lags(len(base_envelope_trimmed.time), len(comp_envelope_trimmed.time), mode="full")
-                    
-                    # fig0 = plt.figure()
-                    # ax0 = fig0.add_axes(111)
-                    # ax0.plot(base_envelope_trimmed.time, base_envelope_trimmed.amplitude_envelope, label='Base signal')
-                    # ax0.plot(comp_envelope_trimmed.time, comp_envelope_trimmed.amplitude_envelope, label='Comp signal')
-                    # ax0.set(title="Amplitude envelope sections used for correlation")
-                    # plt.show()
-
-            correlation_envelope    = spsignal.correlate(base_signal.amplitude_envelope, scaled_signal.amplitude_envelope, mode="full")
-            lags = spsignal.correlation_lags(base_signal.data.size, scaled_signal.data.size, mode="full")
-            # print(correlation.size // 2 - np.argmax(correlation), lags[np.argmax(correlation)])
-            
-            fig2 = plt.figure()
-            ax = fig2.add_axes(111)
-            # ax.plot(lags, correlation_data, alpha=0.5, color='b', label='Scaled signal')
-            ax.plot(lags, correlation_envelope) #* (np.max(correlation_data) / np.max(correlation_envelope)), alpha=0.5, color='r', label='Scaled signal envelope')
-            ax.set(xlabel=f"Indices of shift", ylabel="Correlation")
-
-            # TODO can this be improved by correlating raw analytical complex signal rather than envelope??
-            # TODO also compare from Tx signal, by taking t=0 as t for ~weighted average t of excitation signal pulse
-            # TODO try to backpropagate signals to the tx?
-
-            time_shift_envelope = abs(lags[np.argmax(correlation_envelope)]) / base_signal.sample_frequency
-            time_shift_peaks    = abs(comparison_signal.peak_time[0] - base_signal.peak_time[0])
-            time_shift_waveform_start = abs(comparison_signal.time[comparison_signal.fft_start_index] - base_signal.time[base_signal.fft_start_index])
-
-            # print(f"\nToF for max correlation of scaled signal: {time_shift_data:2e} {base_signal.t_unit}")
-            print(f'\nTof for max correlation of scaled envelope: {time_shift_envelope:.2e} {base_signal.t_unit}')
-            print(f"ToF based on first envelope peaks: {time_shift_peaks:.2e} {base_signal.t_unit}")
-            print(f"ToF based on 2% threshold crossing: {time_shift_waveform_start:.2e} {base_signal.t_unit}")
-            distance = np.linalg.norm(self.receiver_positions[base_index] - self.receiver_positions[rx_index])
-            print(f"Distance travelled {distance}")
-            print(f"Wave velocity: {distance / (time_shift_envelope+1e-14):.2f} (corr. scaled envelope) - {distance / (time_shift_peaks+1e-14):.2f} (peaks) - {distance / time_shift_waveform_start+1e-14:.2f} (Initial threshold)")
-
-            fig, (axtime2, axfrequency2) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-            axtime2.set(title="Shifted signals according to envelope correlation")
-            scaled_shifted_signal = Signal(scaled_signal.time - time_shift_envelope, scaled_signal.data, scaled_signal.t_unit, scaled_signal.d_unit)
-            axtime2, axfrequency2 = Signal._plot_helper(base_signal, axtime2, axfrequency2, tlim, label=f"Base_sig ", colors=['c', 'blue'])
-            axtime2, axfrequency2 = Signal._plot_helper(scaled_shifted_signal, axtime2, axfrequency2, tlim, label=f"Shifted_scaled_comp_sig{rx_index}", colors=['yellow', 'orange'])
-
-            # axtime2.vlines([second_peak_time], ymin=-np.max(np.abs(base_envelope_trimmed.amplitude_envelope)), ymax=np.max(np.abs(base_envelope_trimmed.amplitude_envelope)))
-
-            plt.show()
 
 
     def _valid_input(self, rx_pos, rx_signal):
