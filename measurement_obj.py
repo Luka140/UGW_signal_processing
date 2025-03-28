@@ -17,7 +17,6 @@ class Measurement:
                  tx_signal: Signal,
                  rx_signal: Collection[Signal] | Signal, 
                  dispersion_curves: None | DispersionData = None):
-        self._valid_input(rx_signal, rx_pos)
 
         self.transmitter_position = np.array(tx_pos)
         self.transmitted_signal = tx_signal
@@ -26,9 +25,11 @@ class Measurement:
         # Store positions appropriately based on input type
         if isinstance(rx_signal, Signal):
             self.receiver_positions = [np.array(rx_pos)]
+            self.received_signals = [rx_signal]
         else:
             self.receiver_positions = [np.array(pos) for pos in rx_pos]
 
+        self._valid_input(self.received_signals, self.receiver_positions)
         self.dispersion_curves = dispersion_curves
 
     def compare_signals(self, base_index: int | str = 0, comparison_indices: int | Collection[int] = None, tlim=None, mode='signal', plot_correlation=False):
@@ -109,7 +110,8 @@ class Measurement:
             elif "SSH0" in self.dispersion_curves.get_available_modes():
                 sh0_tag = "SSH0"
             else:
-                raise ValueError("No SH0 mode found in dispersion curves")
+                print("No SH0 mode found in dispersion curves")
+                sh_0_tag = None 
             
             print(f"\nCharacteristic frequency base signal: {base_signal.characteristic_frequency/10**3:.2f} kHz")
             base_vg_a0, base_vg_s0, base_vg_sh0 = self.dispersion_curves.get_value(("A0", "S0", sh0_tag), base_signal.characteristic_frequency/10**3, target_header="Energy velocity")
