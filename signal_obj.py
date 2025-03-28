@@ -40,8 +40,13 @@ class Signal:
         fft_start_index = np.where(np.abs(zero_centered_data) > (np.max(np.abs(zero_centered_data)) * relative_threshold))[0][0]
         
         # Detect last zero crossing before wavepacket. Otherwise start signal at zero regularly
+        
         if fft_start_index > 0.05 * self.data.size:
-            zero_crossing = np.where(zero_centered_data[:fft_start_index-1] * zero_centered_data[1:fft_start_index] < 0)[0][-1]
+            try:
+                zero_crossing = np.where(zero_centered_data[:fft_start_index-1] * zero_centered_data[1:fft_start_index] < 0)[0][-1]
+            except IndexError:
+                print("could not find zero crossing point for FFT start index")
+                zero_crossing = 0
             interval_data = self.data[zero_crossing:]
         else: 
             zero_crossing = 0
