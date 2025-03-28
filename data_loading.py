@@ -27,7 +27,9 @@ def load_signals_labview(path, plot_outliers=True):
         channels = []
         unit_list = list(units)
         for ch in range(1, data.shape[1]):
-            channels.append(Signal(data[:, 0], data[:, ch], t_unit=unit_list[0], d_unit=unit_list[1]))
+
+            # TODO actually check units and do the unit conversion depending on that rather than hardcoding 
+            channels.append(Signal(data[:, 0]/1000, data[:, ch], t_unit= "s", d_unit=unit_list[1]))
         signals.append(channels)
     # print(f"warning: Units not considered currently.\nUnits: {prev_units}")
 
