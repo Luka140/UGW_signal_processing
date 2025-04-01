@@ -10,29 +10,50 @@ import matplotlib.pyplot as plt
 import copy 
 
 
-def load_signals_labview(path, plot_outliers=True):
+def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filter_before_average=False, lowcut=10e3, highcut=200e3, order=2):
     unit_row = 0
     print(path)
     signals = []
     prev_units = None
-    for file in path.glob('*.csv'):
-        csv_data = pd.read_csv(file, skip_blank_lines=True)
+
+    if not path.exists():
+        raise FileNotFoundError(f"The path {path} does not exist.")
+    paths = list(path.glob('*.csv'))
+
+    if len(list(paths)) < 1:
+        raise FileNotFoundError(f"No data files found in {path}")
+
+
+    for i, datafile in enumerate(paths):
+        if i in skip_idx:
+            continue
+        
+        csv_data = pd.read_csv(datafile, skip_blank_lines=True)
         units = csv_data.iloc[unit_row, :]
         if prev_units is not None and (units != prev_units).any():
-            warnings.warn(f"The file at {file} has different units than the previous one ({prev_units}) vs ({units}). This will cause issues with averaging.")
+            warnings.warn(f"The file at {datafile} has different units than the previous one ({prev_units}) vs ({units}). This will cause issues with averaging.")
         prev_units = units
 
         csv_data.drop(unit_row, inplace=True)
-        data = csv_data.to_numpy(dtype=float)
+        try:
+            data = csv_data.to_numpy(dtype=float)
+        except ValueError:
+            print(f"Error converting data to float in {datafile}. Skipping this file.")
+            continue
         channels = []
         unit_list = list(units)
         for ch in range(1, data.shape[1]):
-
+            if ch - 1 in skip_ch: # -1 because first column is time
+                continue
             # TODO actually check units and do the unit conversion depending on that rather than hardcoding 
-            channels.append(Signal(data[:, 0]/1000, data[:, ch], t_unit= "s", d_unit=unit_list[1]))
+            sig = Signal(data[:, 0]/1000, data[:, ch], t_unit= "s", d_unit=unit_list[ch])
+            if filter_before_average:
+                sig = sig.zero_average_signal()
+                sig = sig.bandpass(lowcut, highcut, order=order)
+            channels.append(sig)
         signals.append(channels)
     # print(f"warning: Units not considered currently.\nUnits: {prev_units}")
-
+    
     # Format is [measurement1[ch1, ch2, ch3...], measurement2[...],...]
     # The channels are kept separated for averaging, to ensure different channels are not mixed
     # If there are multiple measurements, average. Otherwise, unpack to [ch1, ch2, ch3,...]
