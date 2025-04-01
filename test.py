@@ -283,10 +283,10 @@ if __name__ == '__main__':
 
     # measurement = Measurement((0,0), [(200e-3,0)], tx_signal=signal[0], rx_signal=signal[1], dispersion_curves=dispersion)
     # measurement.compare_signals(base_index='tx',comparison_indices=[0])
-    # # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
+    # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
 
 
-    # # signal_list = load_signals_labview(data_dir)
+    # signal_list = load_signals_labview(data_dir)
     
 
 
@@ -358,5 +358,6 @@ if __name__ == '__main__':
     measurement = Measurement((0,0), [(58e-3,0), (98e-3, 0.), (100e-3, 0.)], tx_signal=signal[-1], rx_signal=signal[:-1], dispersion_curves=dispersion)
     measurement.compare_signals(base_index='tx',comparison_indices=[1,2])
     measurement.compare_signals(base_index= 1, comparison_indices=[2])
+    measurement.compare_signals(base_index= 0, comparison_indices=[1])
     # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
 
