@@ -105,21 +105,36 @@ class Measurement:
                  f"{distance / (time_shift_peaks+1e-14):.2f} (peaks) - "
                  f"{distance / (time_shift_waveform_start+1e-14):.2f} (Initial threshold)")
 
-            if "ASH0" in self.dispersion_curves.get_available_modes():
-                sh0_tag = "ASH0"
-            elif "SSH0" in self.dispersion_curves.get_available_modes():
-                sh0_tag = "SSH0"
-            else:
+            sh0_tag = None 
+            for sh_tag in ["ASH0", "SSH0", "BSH0"]:
+                if sh_tag in self.dispersion_curves.get_available_modes():
+                    sh0_tag = sh_tag
+                    break
+                    
+            if sh0_tag is None:
                 print("No SH0 mode found in dispersion curves")
-                sh_0_tag = None 
-            
-            print(f"\nCharacteristic frequency base signal: {base_signal.characteristic_frequency/10**3:.2f} kHz")
-            base_vg_a0, base_vg_s0, base_vg_sh0 = self.dispersion_curves.get_value(("A0", "S0", sh0_tag), base_signal.characteristic_frequency/10**3, target_header="Energy velocity")
-            print(f"Energy velocity dispersion curve - A0: {base_vg_a0:.2f} m/ms, S0: {base_vg_s0:.2f} m/ms, {sh0_tag}: {base_vg_sh0:.2f} m/ms")
 
-            print(f"\nCharacteristic frequency comp signal: {comparison_signal.characteristic_frequency/10**3:.2f} kHz")
-            comp_vg_a0, comp_vg_s0, comp_vg_sh0 = self.dispersion_curves.get_value(("A0", "S0", sh0_tag), comparison_signal.characteristic_frequency/10**3, target_header="Energy velocity")
-            print(f"Energy velocity dispersion curve - A0: {comp_vg_a0:.2f} m/ms, S0: {comp_vg_s0:.2f} m/ms, {sh0_tag}: {comp_vg_sh0:.2f} m/ms")
+            if "A0" in self.dispersion_curves.get_available_modes() and "S0" in self.dispersion_curves.get_available_modes():
+                # Get dispersion curves for A0 and S0
+                a0_tag = "A0"
+                s0_tag = "S0"
+            elif "B0" in self.dispersion_curves.get_available_modes() and "B1" in self.dispersion_curves.get_available_modes():
+                # Get dispersion curves for B0 and B1
+                a0_tag = "B0"
+                s0_tag = "B1"
+            else:
+                print("No A0, S0, B0, or B1 mode found in dispersion curves")
+
+            signal_names = ["Base signal", "Comparison signal"]
+            for i, sig in enumerate([base_signal, comparison_signal]):
+
+                print(f"\nCharacteristic frequency {signal_names[i]}: {sig.characteristic_frequency/10**3:.2f} kHz")
+                base_vg_a0, base_vg_s0, base_vg_sh0 = self.dispersion_curves.get_value((a0_tag, s0_tag, sh0_tag), sig.characteristic_frequency/10**3, target_header="Energy velocity")
+                print(f"Energy velocity dispersion curve - A0/B0: {base_vg_a0:.2f} m/ms, S0/B1: {base_vg_s0:.2f} m/ms, {sh0_tag}: {base_vg_sh0:.2f} m/ms")
+
+            # print(f"\nCharacteristic frequency comp signal: {comparison_signal.characteristic_frequency/10**3:.2f} kHz")
+            # comp_vg_a0, comp_vg_s0, comp_vg_sh0 = self.dispersion_curves.get_value(("A0", "S0", sh0_tag), comparison_signal.characteristic_frequency/10**3, target_header="Energy velocity")
+            # print(f"Energy velocity dispersion curve - A0: {comp_vg_a0:.2f} m/ms, S0: {comp_vg_s0:.2f} m/ms, {sh0_tag}: {comp_vg_sh0:.2f} m/ms")
 
             if plot_correlation:
                 # Plot shifted signals
