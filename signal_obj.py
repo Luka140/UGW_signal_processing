@@ -195,8 +195,9 @@ class Signal:
 
     def bandpass(self, lowcut: float, highcut: float, order: int=2):
         bandpass_filter = spsignal.butter(order, Wn=(lowcut, highcut), btype='bandpass', output='sos', fs=self.sample_frequency)
-        filtered_signal = spsignal.sosfilt(bandpass_filter, self.data)
-        return Signal(self.time, filtered_signal, self.t_unit, self.d_unit)
+        # filtered_signal = spsignal.sosfilt(bandpass_filter, self.data)
+        filtered_zero_phase = spsignal.sosfiltfilt(bandpass_filter, self.data)
+        return Signal(self.time, filtered_zero_phase, self.t_unit, self.d_unit)       
     
     def zero_average_signal(self):
         return Signal(self.time, self.data - np.mean(self.data), self.t_unit, self.d_unit)
