@@ -18,7 +18,7 @@ def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filt
 
     if not path.exists():
         raise FileNotFoundError(f"The path {path} does not exist.")
-    paths = list(path.glob('*.csv'))
+    paths = sorted(list(path.glob('*.csv')))
 
     if len(list(paths)) < 1:
         raise FileNotFoundError(f"No data files found in {path}")
@@ -27,11 +27,14 @@ def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filt
     for i, datafile in enumerate(paths):
         if i in skip_idx:
             continue
+        if '[faulty]' in datafile.name.lower():
+            print(f"Skipping {datafile} because it is marked as faulty.")
+            continue
         
         csv_data = pd.read_csv(datafile, skip_blank_lines=True)
         units = csv_data.iloc[unit_row, :]
         if prev_units is not None and (units != prev_units).any():
-            warnings.warn(f"The file at {datafile} has different units than the previous one ({prev_units}) vs ({units}). This will cause issues with averaging.")
+            warnings.warn(f"The file at {datafile} has different units than the previous one:\nPrevious:\n{prev_units}\n\nCurrent:\n{units}\nThis will cause issues with averaging.")
         prev_units = units
 
         csv_data.drop(unit_row, inplace=True)
