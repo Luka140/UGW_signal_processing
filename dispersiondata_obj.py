@@ -267,32 +267,6 @@ class DispersionData:
         return tuple(results) if return_tuple else results[0]
 
 
-# class DispersionCurve:
-
-#     def __init__(self, modes):
-#         self.modes = modes
-
-    
-#     @staticmethod
-#     def from_dlr_txts(path):
-#         modes = []
-#         for path in data_dir.glob('*.txt'):
-#             curves = pd.read_csv(path)
-            
-#             # In the exported csvs, "Attenuation" is always the last column of a mode
-#             modes_in_class = sum([1 for col_name in curves.columns if "Attenuation" in col_name])
-#             columns_per_mode = len(curves.columns) // modes_in_class
-#             mode_freq_headers = curves.columns[0::columns_per_mode]
-#             mode_phase_vel_headers = curves.columns[1::columns_per_mode]
-#             # TODO make this work for anisotropic 
-#             for i, mode_freq in enumerate(mode_freq_headers):
-#                 freq_vel = curves[[mode_freq, mode_phase_vel_headers[i]]].dropna()
-#                 freq_vel = freq_vel.sort_values(mode_freq)
-
-#                 spline = interpolate.CubicSpline(freq_vel[mode_freq], freq_vel[mode_phase_vel_headers[i]], extrapolate=False)
-#                 modes.append(spline)
-    
-
 if __name__=='__main__':
     data_dir = pathlib.Path(__file__).parent / 'data' / 'dispersion_curves' / 's355j2_dispersion_curves'
     
