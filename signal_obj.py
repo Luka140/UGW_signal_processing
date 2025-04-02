@@ -229,8 +229,12 @@ class Signal:
     def _plot_helper(signal: "Signal", axt, axf, tlim=None, label="", colors=None, plot_envelope=True, plot_waveform=True, plot_peak_width=False):
 
         # Set default colors if not provided
-        waveform_color = colors[0] if colors else None
-        envelope_color = colors[1] if colors else None
+        if plot_envelope and plot_waveform:
+            waveform_color = colors[0] if colors else None
+            envelope_color = colors[1] if colors else None
+        else:
+            waveform_color = colors[0] if colors else None
+            envelope_color = colors[0] if colors else None
 
         axt.set_ylabel("Amplitude")
         if plot_waveform:
@@ -265,6 +269,154 @@ class Signal:
         # axf.xlim
         return axt, axf
     
+
+
+
+
+# class SignalPlot:
+#     def __init__(self):
+#         self.fig, (self.axtime, self.axfrequency) = plt.subplots(
+#             nrows=2, sharex='none', tight_layout=True
+#         )
+#         self.signals = []
+#         self.click_markers = []
+#         self.fig.canvas.mpl_connect('button_press_event', self._on_click)
+    
+#     def add_signal(self, signal: Signal, label="", colors=None, 
+#                    plot_envelope=True, plot_waveform=True):
+#         """Add a signal to the plot"""
+#         self.signals.append({
+#             'signal': signal,
+#             'label': label,
+#             'colors': colors,
+#             'plot_envelope': plot_envelope,
+#             'plot_waveform': plot_waveform
+#         })
+#         self._redraw()
+    
+#     def _redraw(self):
+#         """Clear and redraw all signals"""
+#         self.axtime.clear()
+#         self.axfrequency.clear()
+        
+#         for sig_data in self.signals:
+#             Signal._plot_helper(
+#                 sig_data['signal'],
+#                 self.axtime,
+#                 self.axfrequency,
+#                 label=sig_data['label'],
+#                 colors=sig_data['colors'],
+#                 plot_envelope=sig_data['plot_envelope'],
+#                 plot_waveform=sig_data['plot_waveform']
+#             )
+        
+#         # Redraw markers
+#         for marker in self.click_markers:
+#             if marker['type'] == 'line':
+#                 self.axtime.axvline(marker['x'], **marker['style'])
+#             elif marker['type'] == 'text':
+#                 self.axtime.text(marker['x'], marker['y'], **marker['style'])
+        
+#         self.fig.canvas.draw()
+    
+#     def _find_closest_peak(self, signal, click_time, search_window=0.1):
+#         """
+#         Find the closest peak to the clicked time in a specific signal's envelope
+#         with improved peak detection parameters
+#         """
+#         idx = np.searchsorted(signal.time, click_time)
+#         window_samples = int(search_window * signal.sample_frequency)
+        
+#         start_idx = max(0, idx - window_samples)
+#         end_idx = min(len(signal.amplitude_envelope)-1, idx + window_samples)
+        
+#         # Find peaks in the amplitude envelope with more precise parameters
+#         peak_indices, properties = spsignal.find_peaks(
+#             signal.amplitude_envelope[start_idx:end_idx],
+#             height=0.1*np.max(signal.amplitude_envelope),  # Minimum peak height
+#             prominence=0.3,  # Minimum peak prominence
+#             width=2,         # Minimum peak width in samples
+#             distance=10      # Minimum distance between peaks
+#         )
+#         peak_indices += start_idx
+        
+#         if len(peak_indices) == 0:
+#             # If no peaks found, use maximum point in window
+#             max_idx = np.argmax(signal.amplitude_envelope[start_idx:end_idx])
+#             peak_indices = [max_idx + start_idx]
+        
+#         # Find closest peak to click
+#         closest_idx = peak_indices[np.argmin(np.abs(signal.time[peak_indices] - click_time))]
+#         return signal.time[closest_idx], signal.amplitude_envelope[closest_idx], signal
+    
+#     def _on_click(self, event):
+#         if event.inaxes != self.axtime:
+#             return
+        
+#         click_time = event.xdata
+#         closest_peaks = []
+        
+#         for sig_data in self.signals:
+#             try:
+#                 peak_time, peak_amp, signal = self._find_closest_peak(
+#                     sig_data['signal'], click_time
+#                 )
+#                 closest_peaks.append((peak_time, peak_amp, signal))
+#             except Exception as e:
+#                 print(f"Error finding peak in signal {sig_data['label']}: {e}")
+        
+#         if not closest_peaks:
+#             return
+        
+#         # Find the overall closest peak among all signals
+#         closest_peak = min(closest_peaks, key=lambda x: abs(x[0] - click_time))
+#         peak_time, peak_amp, signal = closest_peak
+        
+#         # Clear previous markers
+#         self.click_markers.clear()
+        
+#         # Create marker style based on which signal was clicked
+#         signal_idx = next((i for i, s in enumerate(self.signals) 
+#                          if s['signal'] is signal), 0)
+#         marker_color = ['green', 'purple', 'red'][signal_idx % 3]
+        
+#         # Add vertical line marker
+#         line_style = {
+#             'color': marker_color,
+#             'linestyle': '--',
+#             'linewidth': 2,
+#             'alpha': 0.7
+#         }
+#         self.axtime.axvline(peak_time, **line_style)
+#         self.click_markers.append({
+#             'type': 'line',
+#             'x': peak_time,
+#             'style': line_style
+#         })
+        
+#         # Add text annotation
+#         text_style = {
+#             's': f't={peak_time:.2e}\nA={peak_amp:.2e}',
+#             'ha': 'center',
+#             'va': 'bottom',
+#             'color': marker_color,
+#             'alpha': 0.9,
+#             'bbox': dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.7)
+#         }
+#         self.axtime.text(peak_time, peak_amp, **text_style)
+#         self.click_markers.append({
+#             'type': 'text',
+#             'x': peak_time,
+#             'y': peak_amp,
+#             'style': text_style
+#         })
+        
+#         self.fig.canvas.draw()
+    
+#     def show(self):
+#         plt.show()
+
+
 class SignalPlot:
     def __init__(self):
         self.fig, (self.axtime, self.axfrequency) = plt.subplots(
@@ -285,6 +437,135 @@ class SignalPlot:
             'plot_waveform': plot_waveform
         })
         self._redraw()
+    
+    def _find_closest_curve(self, click_time, click_y):
+        """Determine which signal's curve is closest to the click position"""
+        closest_signal = None
+        min_distance = float('inf')
+        active_curve_type = None  # 'waveform' or 'envelope'
+        
+        for sig_data in self.signals:
+            signal = sig_data['signal']
+            time = signal.time
+            idx = np.searchsorted(time, click_time)
+            idx = max(0, min(idx, len(time)-1))  # Ensure within bounds
+            
+            # Check waveform if plotted
+            if sig_data['plot_waveform']:
+                waveform_dist = abs(signal.data[idx] - click_y)
+                if waveform_dist < min_distance:
+                    min_distance = waveform_dist
+                    closest_signal = sig_data
+                    active_curve_type = 'waveform'
+            
+            # Check envelope if plotted
+            if sig_data['plot_envelope']:
+                envelope_dist = abs(signal.amplitude_envelope[idx] - click_y)
+                if envelope_dist < min_distance:
+                    min_distance = envelope_dist
+                    closest_signal = sig_data
+                    active_curve_type = 'envelope'
+        
+        return closest_signal, active_curve_type
+    
+    def _find_closest_peak(self, signal_data, curve_type, click_time, search_window=0.1):
+        """
+        Find the closest peak to the clicked time on the specified curve of the signal
+        """
+        signal = signal_data['signal']
+        idx = np.searchsorted(signal.time, click_time)
+        window_samples = int(search_window * signal.sample_frequency)
+        
+        start_idx = max(0, idx - window_samples)
+        end_idx = min(len(signal.time)-1, idx + window_samples)
+        
+        # Determine which data to use based on clicked curve type
+        if curve_type == 'envelope':
+            data = signal.amplitude_envelope
+            min_height = 0.1 * np.max(data)
+        else:  # waveform
+            data = signal.data
+            min_height = 0.2 * (np.max(data) - np.min(data))
+        
+        # Find peaks with adaptive parameters
+        peak_indices, _ = spsignal.find_peaks(
+            data[start_idx:end_idx],
+            height=min_height,
+            prominence=0.3,
+            width=3,
+            distance=10
+        )
+        peak_indices += start_idx
+        
+        if len(peak_indices) == 0:
+            # If no peaks found, use maximum point in window
+            peak_indices = [np.argmax(data[start_idx:end_idx]) + start_idx]
+        
+        # Find closest peak to click
+        closest_idx = peak_indices[np.argmin(np.abs(signal.time[peak_indices] - click_time))]
+        return signal.time[closest_idx], data[closest_idx], signal
+    
+    def _on_click(self, event):
+        if event.inaxes != self.axtime:
+            return
+        
+        click_time = event.xdata
+        click_y = event.ydata
+        
+        # First find which curve is closest to the click
+        closest_signal_data, curve_type = self._find_closest_curve(click_time, click_y)
+        if closest_signal_data is None:
+            return
+        
+        # Then find the closest peak on that specific curve
+        try:
+            peak_time, peak_amp, signal = self._find_closest_peak(
+                closest_signal_data, curve_type, click_time
+            )
+        except Exception as e:
+            print(f"Error finding peak: {e}")
+            return
+        
+        # Clear previous markers
+        self.click_markers.clear()
+        
+        # Create marker style based on the signal
+        signal_idx = next((i for i, s in enumerate(self.signals) 
+                         if s['signal'] is signal), 0)
+        marker_color = closest_signal_data['colors'][0] if closest_signal_data['colors'] else 'green'
+        
+        # Add vertical line marker
+        line_style = {
+            'color': marker_color,
+            'linestyle': '--',
+            'linewidth': 2,
+            'alpha': 0.7
+        }
+        self.axtime.axvline(peak_time, **line_style)
+        self.click_markers.append({
+            'type': 'line',
+            'x': peak_time,
+            'style': line_style
+        })
+        
+        # Add text annotation
+        text_style = {
+            's': f"{closest_signal_data['label']}\nt={peak_time:.2e}\nA={peak_amp:.2e}",
+            'ha': 'center',
+            'va': 'bottom',
+            'color': marker_color,
+            'alpha': 0.9,
+            'bbox': dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.7)
+        }
+        self.axtime.text(peak_time, peak_amp, **text_style)
+        self.click_markers.append({
+            'type': 'text',
+            'x': peak_time,
+            'y': peak_amp,
+            'style': text_style
+        })
+        
+        self.fig.canvas.draw()
     
     def _redraw(self):
         """Clear and redraw all signals"""
@@ -311,131 +592,8 @@ class SignalPlot:
         
         self.fig.canvas.draw()
     
-    def _find_closest_peak(self, signal, click_time, search_window=0.1):
-        """
-        Find the closest peak to the clicked time in a specific signal's envelope
-        with improved peak detection parameters
-        """
-        idx = np.searchsorted(signal.time, click_time)
-        window_samples = int(search_window * signal.sample_frequency)
-        
-        start_idx = max(0, idx - window_samples)
-        end_idx = min(len(signal.amplitude_envelope)-1, idx + window_samples)
-        
-        # Find peaks in the amplitude envelope with more precise parameters
-        peak_indices, properties = spsignal.find_peaks(
-            signal.amplitude_envelope[start_idx:end_idx],
-            height=0.1*np.max(signal.amplitude_envelope),  # Minimum peak height
-            prominence=0.3,  # Minimum peak prominence
-            width=2,         # Minimum peak width in samples
-            distance=10      # Minimum distance between peaks
-        )
-        peak_indices += start_idx
-        
-        if len(peak_indices) == 0:
-            # If no peaks found, use maximum point in window
-            max_idx = np.argmax(signal.amplitude_envelope[start_idx:end_idx])
-            peak_indices = [max_idx + start_idx]
-        
-        # Find closest peak to click
-        closest_idx = peak_indices[np.argmin(np.abs(signal.time[peak_indices] - click_time))]
-        return signal.time[closest_idx], signal.amplitude_envelope[closest_idx], signal
-    
-    def _on_click(self, event):
-        if event.inaxes != self.axtime:
-            return
-        
-        click_time = event.xdata
-        closest_peaks = []
-        
-        for sig_data in self.signals:
-            try:
-                peak_time, peak_amp, signal = self._find_closest_peak(
-                    sig_data['signal'], click_time
-                )
-                closest_peaks.append((peak_time, peak_amp, signal))
-            except Exception as e:
-                print(f"Error finding peak in signal {sig_data['label']}: {e}")
-        
-        if not closest_peaks:
-            return
-        
-        # Find the overall closest peak among all signals
-        closest_peak = min(closest_peaks, key=lambda x: abs(x[0] - click_time))
-        peak_time, peak_amp, signal = closest_peak
-        
-        # Clear previous markers
-        self.click_markers.clear()
-        
-        # Create marker style based on which signal was clicked
-        signal_idx = next((i for i, s in enumerate(self.signals) 
-                         if s['signal'] is signal), 0)
-        marker_color = ['green', 'purple', 'red'][signal_idx % 3]
-        
-        # Add vertical line marker
-        line_style = {
-            'color': marker_color,
-            'linestyle': '--',
-            'linewidth': 2,
-            'alpha': 0.7
-        }
-        self.axtime.axvline(peak_time, **line_style)
-        self.click_markers.append({
-            'type': 'line',
-            'x': peak_time,
-            'style': line_style
-        })
-        
-        # Add text annotation
-        text_style = {
-            's': f't={peak_time:.2e}\nA={peak_amp:.2e}',
-            'ha': 'center',
-            'va': 'bottom',
-            'color': marker_color,
-            'alpha': 0.9,
-            'bbox': dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.7)
-        }
-        self.axtime.text(peak_time, peak_amp, **text_style)
-        self.click_markers.append({
-            'type': 'text',
-            'x': peak_time,
-            'y': peak_amp,
-            'style': text_style
-        })
-        
-        self.fig.canvas.draw()
-    
     def show(self):
         plt.show()
-
-    # def compare_other_signal(self, other: Union['Signal', List['Signal']], tlim=None):
-        
-    #     if type(other) == Signal:
-    #         signals = [self, other]
-    #     elif type(other) == list:
-    #         signals = [self, *other]
-    #     else:
-    #         raise TypeError(f"Only supports: Signal | list[Signal], not {type(other)}")
-        
-    #     for i in range(1, len(signals)):
-
-    #         scaling_factor = np.max(self.amplitude_envelope) / np.max(signals[i].amplitude_envelope)
-    #         scaled_signal = Signal(signals[i].time, signals[i].data * scaling_factor, signals[i].t_unit, signals[i].d_unit)
-    #         # lag = lags[np.argmax(correlation)]
-    #         # print(lag)
-    #         # ax.plot(range(lags.size), lags)
-    #         fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-    #         axtime, axfrequency = self._plot_helper(self, axtime, axfrequency, tlim, label=f"Sig{0}")
-    #         axtime, axfrequency = self._plot_helper(scaled_signal, axtime, axfrequency, tlim, label=f"Sig{i}")
-
-    #         fig2 = plt.figure()
-    #         ax = fig2.add_axes(111)
-    #         correlation = spsignal.correlate(self.amplitude_envelope, scaled_signal.amplitude_envelope, mode="full")
-    #         lags = spsignal.correlation_lags(self.data.size, scaled_signal.data.size, mode="full")
-    #         # print(correlation.size // 2 - np.argmax(correlation), lags[np.argmax(correlation)])
-    #         ax.plot(lags, correlation)
-    #         plt.show()
-
 
 if __name__ == '__main__':
     ...
