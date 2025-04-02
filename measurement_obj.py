@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np 
 import scipy.fft as spfft 
 from typing import Collection
-from signal_obj import Signal 
+from signal_obj import Signal, SignalPlot 
 from data_loading import load_signals_abaqus, load_signals_SINTEG
 from dispersiondata_obj import DispersionData
 
@@ -68,14 +68,32 @@ class Measurement:
                                  comparison_signal.t_unit, 
                                  comparison_signal.d_unit)
 
-            fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-            axtime, axfrequency = Signal._plot_helper(base_signal, axtime, axfrequency, tlim, 
-                                                     label=f"Base_sig {'tx' if base_index == 'tx' else base_index}", 
-                                                     colors=['c', 'blue'])
-            axtime, axfrequency = Signal._plot_helper(scaled_signal, axtime, axfrequency, tlim, 
-                                                    label=f"Scaled_comp_sig{rx_index}", 
-                                                    colors=['yellow', 'orange'])
+                    
+            # Create the SignalPlot object
+            signal_plot = SignalPlot()
 
+            # Add the base signal with specified styling
+            signal_plot.add_signal(
+                base_signal,
+                label=f"Base_sig {'tx' if base_index == 'tx' else base_index}",
+                colors=['c', 'blue']
+            )
+
+            # Add the scaled comparison signal with specified styling
+            signal_plot.add_signal(
+                scaled_signal,
+                label=f"Scaled_comp_sig{rx_index}",
+                colors=['yellow', 'orange']
+            )
+
+            # Customize the plot if needed
+            signal_plot.axtime.set_title("Signal Comparison")
+            signal_plot.axfrequency.set_xlim(0, 2 * base_signal.fft_frequency[np.argmax(base_signal.fft_magnitude)])
+
+            # Show the interactive plot
+            signal_plot.show()
+
+            
             # Correlation calculations
             correlation_envelope = spsignal.correlate(base_signal.amplitude_envelope, 
                                                     scaled_signal.amplitude_envelope, 
