@@ -69,6 +69,7 @@ if __name__ == '__main__':
     #         axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
     # plt.show()
     
+    # [sig.set_fft_pad_times(1) for sig in avg_signals]
 
     # measurement = Measurement((0,0), [(58e-3,0), (98e-3, 0.), (198e-3, 0.)], tx_signal=avg_signals[-1], rx_signal=avg_signals[:-1], dispersion_curves=dispersion)
     # measurement.compare_signals(0,[1,2])

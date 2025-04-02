@@ -56,12 +56,13 @@ if __name__ == "__main__":
     # SET PADDING TO 1 
     [sig.set_fft_pad_times(5) for sig in signal]
     # ------------ CHECK ORDER OF ARIVAL
-    fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-    for i in range(len(signal)):
-            axtime, axfrequency = Signal._plot_helper(signal[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
-    plt.show()
+    # fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
+    # for i in range(len(signal)):
+    #         axtime, axfrequency = Signal._plot_helper(signal[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
+    # plt.show()
 
     measurement = Measurement((0,0), [(58e-3,0), (98e-3, 0.), (100e-3, 0.)], tx_signal=signal[-1], rx_signal=signal[:-1], dispersion_curves=dispersion)
+    measurement.plot_envelopes()
     measurement.compare_signals(base_index='tx',comparison_indices=[1,2])
     measurement.compare_signals(base_index= 1, comparison_indices=[2])
     # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")

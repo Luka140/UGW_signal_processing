@@ -33,13 +33,9 @@ if __name__ == '__main__':
     # avg_signals = [sig.zero_average_signal().bandpass(80e3, 120e3, order=2) for sig in avg_signals]
     # # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
 
-    # # ------------ CHECK ORDER OF ARIVAL
-    # fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-    # for i in range(len(avg_signals)):
-    #         axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
-    # plt.show()
 
     # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion)
+    # measurement.plot_envelopes()
     # measurement.compare_signals(0,2)
     # # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
 
@@ -61,13 +57,10 @@ if __name__ == '__main__':
     avg_signals = [sig.zero_average_signal().bandpass(30e3, 70e3, order=2) for sig in avg_signals]
     # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
 
-    # ------------ CHECK ORDER OF ARIVAL
-    fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-    for i in range(len(avg_signals)):
-            axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
-    plt.show()
 
     measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion)
+    
+    measurement.plot_envelopes()
     measurement.compare_signals(0,1)
     measurement.compare_signals(0,2)
     # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")

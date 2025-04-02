@@ -11,6 +11,7 @@ from data_loading import load_signals_abaqus, load_signals_SINTEG
 from dispersiondata_obj import DispersionData
 
 
+# TODO integratee SignalPlot such that it can be used to calculate velocities directly from the plot 
 class Measurement:
     def __init__(self, tx_pos, 
                  rx_pos: Collection[Collection[float]] | Collection[float], 
