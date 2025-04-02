@@ -32,6 +32,18 @@ class Measurement:
         self._valid_input(self.received_signals, self.receiver_positions)
         self.dispersion_curves = dispersion_curves
 
+    def plot_envelopes(self):
+        plot = SignalPlot()
+        if self.transmitted_signal is not None:
+            plot.add_signal(self.transmitted_signal, label="tx", colors=['red'], plot_waveform=False)
+        for i, sig in enumerate(self.received_signals):
+            plot.add_signal(sig, label=f"Rx sig{i}", plot_waveform=False)
+
+        plot.axtime.set_title("Signal envelopes")
+        plot.axtime.set(xlabel="Time (s)")
+        
+        plot.show()
+
     def compare_signals(self, base_index: int | str = 0, comparison_indices: int | Collection[int] = None, tlim=None, mode='signal', plot_correlation=False):
         """
         Compare signals with options to use transmitted signal as reference.
@@ -93,7 +105,7 @@ class Measurement:
             # Show the interactive plot
             signal_plot.show()
 
-            
+
             # Correlation calculations
             correlation_envelope = spsignal.correlate(base_signal.amplitude_envelope, 
                                                     scaled_signal.amplitude_envelope, 
