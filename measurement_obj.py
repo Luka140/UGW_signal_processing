@@ -17,7 +17,9 @@ class Measurement:
                  rx_pos: Collection[Collection[float]] | Collection[float], 
                  tx_signal: Signal,
                  rx_signal: Collection[Signal] | Signal, 
-                 dispersion_curves: None | DispersionData = None):
+                 dispersion_curves: None | DispersionData = None,
+                 excitation_frequency=None,
+                 excitation_cycles=None):
 
         self.transmitter_position = np.array(tx_pos)
         self.transmitted_signal = tx_signal
@@ -31,14 +33,38 @@ class Measurement:
             self.receiver_positions = [np.array(pos) for pos in rx_pos]
 
         self._valid_input(self.received_signals, self.receiver_positions)
-        self.dispersion_curves = dispersion_curves
 
-    def plot_envelopes(self):
+        self.dispersion_curves = dispersion_curves
+        
+        self.excitation_frequency = excitation_frequency
+        if excitation_frequency is not None and excitation_cycles is not None:
+            self.t_excitation_peak = 0.5 * excitation_cycles / excitation_frequency
+        else:
+            self.t_excitation_peak = None
+
+    def plot_envelopes(self, plot_predicted_arrival_times=True):
         plot = SignalPlot()
         if self.transmitted_signal is not None:
             plot.add_signal(self.transmitted_signal, label="tx", colors=['red'], plot_waveform=False)
         for i, sig in enumerate(self.received_signals):
             plot.add_signal(sig, label=f"Rx sig{i}", plot_waveform=False)
+
+        if self.t_excitation_peak is not None and plot_predicted_arrival_times:
+            plot.add_manual_marker(self.t_excitation_peak, color='red', linestyle='--', label="Excitation\npeak")
+
+            if self.dispersion_curves is not None:
+                a0_tag, s0_tag, sh0_tag = self.dispersion_curves.get_fundamental_mode_tags()
+                a0_vel = self.dispersion_curves.get_value(a0_tag, self.excitation_frequency/10**3, target_header="Energy velocity")
+                s0_vel = self.dispersion_curves.get_value(s0_tag, self.excitation_frequency/10**3, target_header="Energy velocity")
+                sh0_vel = self.dispersion_curves.get_value(sh0_tag, self.excitation_frequency/10**3, target_header="Energy velocity")
+
+                colors=['blue', 'orange', 'green', 'red']
+                for i, pos in enumerate(self.receiver_positions):
+                    distance = np.linalg.norm(self.transmitter_position - pos)
+                    ta0, ts0, tsh0 = distance/(a0_vel*10**3) + self.t_excitation_peak, distance/(s0_vel*10**3) + self.t_excitation_peak, distance/(sh0_vel*10**3) + self.t_excitation_peak
+                    plot.add_manual_marker(ta0, color=colors[i%len(colors)], linestyle='--', label=f"Rx{i}\nA0", alpha=0.3)
+                    plot.add_manual_marker(ts0, color=colors[i%len(colors)], linestyle='--', label=f"Rx{i}\nS0", alpha=0.3)
+                    plot.add_manual_marker(tsh0, color=colors[i%len(colors)], linestyle='--', label=f"Rx{i}\nSH0", alpha=0.3)
 
         plot.axtime.set_title("Signal envelopes")
         plot.axtime.set(xlabel="Time (s)")
@@ -136,25 +162,7 @@ class Measurement:
                  f"{distance / (time_shift_peaks+1e-14):.2f} (peaks) - "
                  f"{distance / (time_shift_waveform_start+1e-14):.2f} (Initial threshold)")
 
-            sh0_tag = None 
-            for sh_tag in ["ASH0", "SSH0", "BSH0"]:
-                if sh_tag in self.dispersion_curves.get_available_modes():
-                    sh0_tag = sh_tag
-                    break
-                    
-            if sh0_tag is None:
-                print("No SH0 mode found in dispersion curves")
-
-            if "A0" in self.dispersion_curves.get_available_modes() and "S0" in self.dispersion_curves.get_available_modes():
-                # Get dispersion curves for A0 and S0
-                a0_tag = "A0"
-                s0_tag = "S0"
-            elif "B0" in self.dispersion_curves.get_available_modes() and "B1" in self.dispersion_curves.get_available_modes():
-                # Get dispersion curves for B0 and B1
-                a0_tag = "B0"
-                s0_tag = "B1"
-            else:
-                print("No A0, S0, B0, or B1 mode found in dispersion curves")
+            a0_tag, s0_tag, sh0_tag = self.dispersion_curves.get_fundamental_mode_tags()
 
             signal_names = ["Base signal", "Comparison signal"]
             for i, sig in enumerate([base_signal, comparison_signal]):

@@ -269,14 +269,14 @@ class Signal:
         # axf.xlim
         return axt, axf
     
-
 class SignalPlot:
     def __init__(self):
         self.fig, (self.axtime, self.axfrequency) = plt.subplots(
             nrows=2, sharex='none', tight_layout=True
         )
         self.signals = []
-        self.click_markers = []
+        self.click_markers = []  # For auto-generated markers from clicks
+        self.manual_markers = []  # For manually added markers
         self.fig.canvas.mpl_connect('button_press_event', self._on_click)
     
     def add_signal(self, signal: Signal, label="", colors=None, 
@@ -289,6 +289,58 @@ class SignalPlot:
             'plot_envelope': plot_envelope,
             'plot_waveform': plot_waveform
         })
+        self._redraw()
+    
+    def add_manual_marker(self, x_position, label=None, color='red', 
+                          linestyle='--', linewidth=2, alpha=0.7):
+        """
+        Add a manual vertical marker to the plot
+        
+        Parameters:
+        -----------
+        x_position : float
+            Time position for the vertical line
+        label : str, optional
+            Text label to display at the marker
+        color : str, optional
+            Color of the marker line and text
+        linestyle : str, optional
+            Line style for the marker
+        linewidth : float, optional
+            Width of the marker line
+        alpha : float, optional
+            Transparency of the marker
+        """
+        marker = {
+            'type': 'manual',
+            'x': x_position,
+            'style': {
+                'color': color,
+                'linestyle': linestyle,
+                'linewidth': linewidth,
+                'alpha': alpha
+            },
+            'label': label
+        }
+        self.manual_markers.append(marker)
+        self._redraw()
+        return marker  # Return marker reference for potential removal
+    
+    def remove_marker(self, marker_reference):
+        """Remove a specific marker from the plot"""
+        if marker_reference in self.click_markers:
+            self.click_markers.remove(marker_reference)
+        elif marker_reference in self.manual_markers:
+            self.manual_markers.remove(marker_reference)
+        self._redraw()
+    
+    def clear_markers(self, manual_only=False):
+        """Clear all markers from the plot"""
+        if manual_only:
+            self.manual_markers.clear()
+        else:
+            self.click_markers.clear()
+            self.manual_markers.clear()
         self._redraw()
     
     def _find_closest_curve(self, click_time, click_y):
@@ -379,12 +431,10 @@ class SignalPlot:
             print(f"Error finding peak: {e}")
             return
         
-        # Clear previous markers
+        # Clear previous auto markers (keep manual ones)
         self.click_markers.clear()
         
         # Create marker style based on the signal
-        signal_idx = next((i for i, s in enumerate(self.signals) 
-                         if s['signal'] is signal), 0)
         marker_color = closest_signal_data['colors'][0] if closest_signal_data['colors'] else 'green'
         
         # Add vertical line marker
@@ -421,10 +471,11 @@ class SignalPlot:
         self.fig.canvas.draw()
     
     def _redraw(self):
-        """Clear and redraw all signals"""
+        """Clear and redraw all signals and markers"""
         self.axtime.clear()
         self.axfrequency.clear()
         
+        # Redraw signals
         for sig_data in self.signals:
             Signal._plot_helper(
                 sig_data['signal'],
@@ -436,10 +487,19 @@ class SignalPlot:
                 plot_waveform=sig_data['plot_waveform']
             )
         
-        # Redraw markers
-        for marker in self.click_markers:
-            if marker['type'] == 'line':
+        # Redraw all markers (both click and manual)
+        for marker in self.click_markers + self.manual_markers:
+            if marker['type'] in ('line', 'manual'):
                 self.axtime.axvline(marker['x'], **marker['style'])
+                if 'label' in marker and marker['label']:
+                    self.axtime.text(
+                        marker['x'], 
+                        self.axtime.get_ylim()[1] * 0.9,  # Place near top
+                        marker['label'],
+                        ha='center',
+                        color=marker['style']['color'],
+                        bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.7)
+                    )
             elif marker['type'] == 'text':
                 self.axtime.text(marker['x'], marker['y'], **marker['style'])
         
@@ -448,5 +508,6 @@ class SignalPlot:
     def show(self):
         plt.show()
 
+        
 if __name__ == '__main__':
     ...

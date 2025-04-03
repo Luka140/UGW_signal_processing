@@ -265,6 +265,35 @@ class DispersionData:
                 raise ValueError(f"Unknown interpolation method: {interpolation}")
         
         return tuple(results) if return_tuple else results[0]
+    
+    def get_fundamental_mode_tags(self) -> tuple[str]:
+        """
+        Get the fundamental mode tags from the available modes.
+        
+        Returns:
+            tuple[str]: Tuple of fundamental mode tags in order A0 S0 SH0
+        """
+        sh0_tag = None 
+        for sh_tag in ["ASH0", "SSH0", "BSH0"]:
+            if sh_tag in self.get_available_modes():
+                sh0_tag = sh_tag
+                break
+                
+        if sh0_tag is None:
+            print("No SH0 mode found in dispersion curves")
+
+        if "A0" in self.get_available_modes() and "S0" in self.get_available_modes():
+            # Get dispersion curves for A0 and S0
+            a0_tag = "A0"
+            s0_tag = "S0"
+        elif "B0" in self.get_available_modes() and "B1" in self.get_available_modes():
+            # Get dispersion curves for B0 and B1
+            a0_tag = "B0"
+            s0_tag = "B1"
+        else:
+            print("No A0, S0, B0, or B1 mode found in dispersion curves")
+
+        return a0_tag, s0_tag, sh0_tag
 
 
 if __name__=='__main__':
