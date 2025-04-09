@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import copy 
 
 
-def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filter_before_average=False, lowcut=10e3, highcut=200e3, order=2):
+def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filter_before_average=False, lowcut=10e3, highcut=200e3, order=2, t_to_sec_factor=1000):
     unit_row = 0
     print(path)
     signals = []
@@ -31,7 +31,7 @@ def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filt
             print(f"Skipping {datafile} because it is marked as faulty.")
             continue
         
-        csv_data = pd.read_csv(datafile, skip_blank_lines=True)
+        csv_data = pd.read_csv(datafile, skip_blank_lines=True, low_memory=False)
         units = csv_data.iloc[unit_row, :]
         if prev_units is not None and (units != prev_units).any():
             warnings.warn(f"The file at {datafile} has different units than the previous one:\nPrevious:\n{prev_units}\n\nCurrent:\n{units}\nThis will cause issues with averaging.")
@@ -49,7 +49,7 @@ def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filt
             if ch - 1 in skip_ch: # -1 because first column is time
                 continue
             # TODO actually check units and do the unit conversion depending on that rather than hardcoding 
-            sig = Signal(data[:, 0]/1000, data[:, ch], t_unit= "s", d_unit=unit_list[ch])
+            sig = Signal(data[:, 0]/t_to_sec_factor, data[:, ch], t_unit= "s", d_unit=unit_list[ch])
             if filter_before_average:
                 sig = sig.zero_average_signal()
                 sig = sig.bandpass(lowcut, highcut, order=order)
