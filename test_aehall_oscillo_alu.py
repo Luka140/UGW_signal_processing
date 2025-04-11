@@ -35,10 +35,11 @@ if __name__ == '__main__':
     # # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
 
 
-    # measurement = Measurement((0,0), [(18e-3,0), (98e-3, 0.), (250e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion, excitation_cycles=5, excitation_frequency=100e3)
+    # measurement = Measurement((0,0), [(18e-3,0), (98e-3, 0.), (250e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion, 
+    #                           excitation_cycles=5, excitation_frequency=100e3, amplifier_t_delay=0.)
     # measurement.plot_envelopes()
     # measurement.compare_signals(0,2)
-    # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
+    # # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
 
 
 
@@ -72,27 +73,27 @@ if __name__ == '__main__':
 
 
 
-    # TODO A0 arrival time seems to make sense! 
-    # --------- Load dispersion curves from files ---------
-    dispersion_dir = pathlib.Path(__file__).parent / 'data' / 'dispersion_curves' / 'reference_alu_curves'
+    # # TODO A0 arrival time seems to make sense! 
+    # # --------- Load dispersion curves from files ---------
+    # dispersion_dir = pathlib.Path(__file__).parent / 'data' / 'dispersion_curves' / 'reference_alu_curves'
     
-    dispersion = DispersionData()
-    for curves_file in dispersion_dir.glob('*.txt'):
-        dispersion.merge(DispersionData(curves_file))
-    print("Available modes:", dispersion.get_available_modes())
+    # dispersion = DispersionData()
+    # for curves_file in dispersion_dir.glob('*.txt'):
+    #     dispersion.merge(DispersionData(curves_file))
+    # print("Available modes:", dispersion.get_available_modes())
 
-    # --------- Load signals from files ---------
-    data = pathlib.Path(__file__).parent / "data" / "measurement_data" / "TESTS_OSCILLOSCOPE_AE_HALL" / "measurements_alu" / "measurement_100khz_3cycles_18_58_98_s1803"
-    avg_signals = load_signals_labview(data, skip_idx={}, plot_outliers=True, filter_before_average=True)
+    # # --------- Load signals from files ---------
+    # data = pathlib.Path(__file__).parent / "data" / "measurement_data" / "TESTS_OSCILLOSCOPE_AE_HALL" / "measurements_alu" / "measurement_100khz_3cycles_18_58_98_s1803"
+    # avg_signals = load_signals_labview(data, skip_idx={}, plot_outliers=True, filter_before_average=True)
 
-    # --------- Bandpass filter and zero average signals ---------
-    avg_signals = [sig.zero_average_signal().bandpass(80e3, 120e3, order=2) for sig in avg_signals]
-    # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
+    # # --------- Bandpass filter and zero average signals ---------
+    # avg_signals = [sig.zero_average_signal().bandpass(80e3, 120e3, order=2) for sig in avg_signals]
+    # # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
 
-    # ------------ CHECK ORDER OF ARIVAL
-    measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion, excitation_cycles=3, excitation_frequency=100e3)
-    measurement.plot_envelopes()
-    measurement.compare_signals(0,2)
+    # # ------------ CHECK ORDER OF ARIVAL
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion, excitation_cycles=3, excitation_frequency=100e3)
+    # measurement.plot_envelopes()
+    # measurement.compare_signals(0,2)
     
 
     # # TODO A0 arrival time seems to make sense!
@@ -112,45 +113,39 @@ if __name__ == '__main__':
     # avg_signals = [sig.zero_average_signal().bandpass(80e3, 120e3, order=2) for sig in avg_signals]
     # # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
 
-    # # ------------ CHECK ORDER OF ARIVAL
-    # fig, (axtime, axfrequency) = plt.subplots(nrows=2, sharex='none', tight_layout=True)
-    # for i in range(len(avg_signals)):
-    #         axtime, axfrequency = Signal._plot_helper(avg_signals[i], axtime, axfrequency,  label=f"sig{i}", plot_waveform=False)
-    # plt.show()
-
-    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion)
-    # measurement.compare_signals(0,2)
-    # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
-
-
-
-
-    # # TODO A0 is pretty on point (1800 0-2, 1885 1-2  -- Should be 1780 m/s) 
-    # # --------- Load dispersion curves from files ---------
-    # dispersion_dir = pathlib.Path(__file__).parent / 'data' / 'dispersion_curves' / 'reference_alu_curves'
-    
-    # dispersion = DispersionData()
-    # for curves_file in dispersion_dir.glob('*.txt'):
-    #     dispersion.merge(DispersionData(curves_file))
-    # print("Available modes:", dispersion.get_available_modes())
-
-    # # --------- Load signals from files ---------
-    # data = pathlib.Path(__file__).parent / "data" / "measurement_data" / "TESTS_OSCILLOSCOPE_AE_HALL" / "measurements_alu" / "measurements_50khz_3_cycles_18mm_58_98mm_s1803"
-    # avg_signals = load_signals_labview(data, skip_idx={}, plot_outliers=True, filter_before_average=True)
-
-    # [sig.set_fft_pad_times(1) for sig in avg_signals]
-
-    # # --------- Bandpass filter and zero average signals ---------
-    # avg_signals = [sig.zero_average_signal().bandpass(30e3, 70e3, order=2) for sig in avg_signals]
-    # # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
-
-    # # ------------ CHECK ORDER OF ARIVAL
-
-    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion)
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion, amplifier_t_delay=1.01e-5, excitation_cycles=5, excitation_frequency=100e3)
     # measurement.plot_envelopes()
-    # measurement.compare_signals(0,2)
-    # measurement.compare_signals(1,2)
-    # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
+    # # measurement.compare_signals(0,2)
+
+
+
+
+    # TODO A0 is pretty on point (1800 0-2, 1885 1-2  -- Should be 1780 m/s) 
+    # --------- Load dispersion curves from files ---------
+    dispersion_dir = pathlib.Path(__file__).parent / 'data' / 'dispersion_curves' / 'reference_alu_curves'
+    
+    dispersion = DispersionData()
+    for curves_file in dispersion_dir.glob('*.txt'):
+        dispersion.merge(DispersionData(curves_file))
+    print("Available modes:", dispersion.get_available_modes())
+
+    # --------- Load signals from files ---------
+    data = pathlib.Path(__file__).parent / "data" / "measurement_data" / "TESTS_OSCILLOSCOPE_AE_HALL" / "measurements_alu" / "measurements_50khz_3_cycles_18mm_58_98mm_s1803"
+    avg_signals = load_signals_labview(data, skip_idx={}, plot_outliers=True, filter_before_average=True, overwrite_average=False)
+
+    [sig.set_fft_pad_times(1) for sig in avg_signals]
+
+    # --------- Bandpass filter and zero average signals ---------
+    avg_signals = [sig.zero_average_signal().bandpass(30e3, 70e3, order=2) for sig in avg_signals]
+    # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
+
+    # ------------ CHECK ORDER OF ARIVAL
+
+    measurement = Measurement((0,0), rx_pos=[(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion, excitation_cycles=3, excitation_frequency=50e3, amplifier_t_delay=0.42e-5)
+    measurement.plot_envelopes()
+    measurement.compare_signals(0,2)
+    measurement.compare_signals(1,2)
+    new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
 
 
 
@@ -174,11 +169,10 @@ if __name__ == '__main__':
     # # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
 
 
-    # measurement = Measurement((0,0), [(18e-3,0), (98e-3, 0.), (250e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion)
+    # measurement = Measurement((0,0), [(18e-3,0), (98e-3, 0.), (250e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion, excitation_cycles=3, excitation_frequency=50e3)
     # measurement.plot_envelopes()
     # measurement.compare_signals(0,2)
-    # # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
-
+    
 
 
 
@@ -259,11 +253,11 @@ if __name__ == '__main__':
     # avg_signals = [sig.zero_average_signal().bandpass(30e3, 70e3, order=2) for sig in avg_signals]
     # # avg_signals = [sig.zero_average_signal() for sig in avg_signals]
 
-    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion)
+    # measurement = Measurement((0,0), [(18e-3,0), (58e-3, 0.), (98e-3, 0.)], tx_signal=None, rx_signal=avg_signals, dispersion_curves=dispersion,
+    #                           excitation_cycles=3, excitation_frequency=50e3, amplifier_t_delay=1.01e-5)
     # measurement.plot_envelopes()
     # # measurement.compare_signals(0,2)
     # # measurement.compare_signals(1,2)
-    # # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
-
+    # # # new_signals = measurement.compensate_dispersion(center_frequency=60e3, mode="A0")
 
 
