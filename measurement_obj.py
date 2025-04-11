@@ -19,7 +19,8 @@ class Measurement:
                  rx_signal: Collection[Signal] | Signal, 
                  dispersion_curves: None | DispersionData = None,
                  excitation_frequency=None,
-                 excitation_cycles=None):
+                 excitation_cycles=None,
+                 amplifier_t_delay=None):
 
         self.transmitter_position = np.array(tx_pos)
         self.transmitted_signal = tx_signal
@@ -32,15 +33,20 @@ class Measurement:
         else:
             self.receiver_positions = [np.array(pos) for pos in rx_pos]
 
-        self._valid_input(self.received_signals, self.receiver_positions)
+        self._valid_input(self.receiver_positions, self.received_signals)
 
         self.dispersion_curves = dispersion_curves
         
         self.excitation_frequency = excitation_frequency
         if excitation_frequency is not None and excitation_cycles is not None:
             self.t_excitation_peak = 0.5 * excitation_cycles / excitation_frequency
+            if amplifier_t_delay is not None:
+                self.t_excitation_peak += amplifier_t_delay
+
         else:
             self.t_excitation_peak = None
+
+        
 
     def plot_envelopes(self, plot_predicted_arrival_times=True):
         plot = SignalPlot()
