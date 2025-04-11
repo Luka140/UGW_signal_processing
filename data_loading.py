@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import copy 
 
 
-def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filter_before_average=False, lowcut=10e3, highcut=200e3, order=2, t_to_sec_factor=1000):
-    unit_row = 0
+def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filter_before_average=False, lowcut=10e3, highcut=200e3, order=2, t_to_sec_factor=None, overwrite_average=False):
+    
     print(path)
     signals = []
     prev_units = None
@@ -23,6 +23,11 @@ def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filt
     if len(list(paths)) < 1:
         raise FileNotFoundError(f"No data files found in {path}")
 
+    if any('[averaged]' in path.name.lower() for path in paths) and not overwrite_average:
+        print('Found averaged file, loading it instead of the original files.')
+        paths = [path for path in paths if '[averaged]' in path.name.lower()]
+        return _open_labview_file(paths[0], unit_row=0, skip_ch=skip_ch, t_to_sec_factor=t_to_sec_factor, prev_units=None)[0]
+    
 
     for i, datafile in enumerate(paths):
         if i in skip_idx:
@@ -30,32 +35,19 @@ def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filt
         if '[faulty]' in datafile.name.lower():
             print(f"Skipping {datafile} because it is marked as faulty.")
             continue
-        
-        csv_data = pd.read_csv(datafile, skip_blank_lines=True, low_memory=False)
-        units = csv_data.iloc[unit_row, :]
-        if prev_units is not None and (units != prev_units).any():
-            warnings.warn(f"The file at {datafile} has different units than the previous one:\nPrevious:\n{prev_units}\n\nCurrent:\n{units}\nThis will cause issues with averaging.")
-        prev_units = units
-
-        csv_data.drop(unit_row, inplace=True)
-        try:
-            data = csv_data.to_numpy(dtype=float)
-        except ValueError:
-            print(f"Error converting data to float in {datafile}. Skipping this file.")
+        if '[averaged]' in datafile.name.lower():
+            print(f"Skipping {datafile} because it is marked as averaged, while overwrite_average is {overwrite_average}")
             continue
-        channels = []
-        unit_list = list(units)
-        for ch in range(1, data.shape[1]):
-            if ch - 1 in skip_ch: # -1 because first column is time
-                continue
-            # TODO actually check units and do the unit conversion depending on that rather than hardcoding 
-            sig = Signal(data[:, 0]/t_to_sec_factor, data[:, ch], t_unit= "s", d_unit=unit_list[ch])
-            if filter_before_average:
-                sig = sig.zero_average_signal()
-                sig = sig.bandpass(lowcut, highcut, order=order)
-            channels.append(sig)
-        signals.append(channels)
-    # print(f"warning: Units not considered currently.\nUnits: {prev_units}")
+        
+        file_channels, prev_units = _open_labview_file(datafile, unit_row=0, skip_ch=skip_ch, t_to_sec_factor=t_to_sec_factor, prev_units=prev_units)
+        if len(file_channels) == 0:
+            print(f"Skipping {datafile}")
+            continue 
+
+        if filter_before_average:
+            file_channels = [sig.zero_average_signal().bandpass(lowcut, highcut, order=order) for sig in file_channels]
+
+        signals.append(file_channels)
     
     # Format is [measurement1[ch1, ch2, ch3...], measurement2[...],...]
     # The channels are kept separated for averaging, to ensure different channels are not mixed
@@ -63,10 +55,76 @@ def load_signals_labview(path, skip_idx={}, skip_ch={}, plot_outliers=True, filt
     # Averaging will result in the same data structure of [avg_ch1, avg_ch2, avg_ch3,...]
     if len(signals) > 1:
         signals = average_signals(signals, plot_outliers=plot_outliers)
+        save_channels_labview_format(signals, path)
     else:
         signals = signals[0]
 
     return signals
+
+def _open_labview_file(datafile, unit_row=0, skip_ch=[], t_to_sec_factor=None, prev_units=None):
+    channels = []
+    csv_data = pd.read_csv(datafile, skip_blank_lines=True, low_memory=False)
+    units = list(csv_data.iloc[unit_row, :])
+    if prev_units is not None and any([units[i] != prev_units[i] for i in range(len(units))]):
+        warnings.warn(f"The file at {datafile} has different units than the previous one:\nPrevious:\n{prev_units}\n\nCurrent:\n{units}\nThis will cause issues with averaging.")
+    prev_units = units
+
+    csv_data.drop(unit_row, inplace=True)
+    try:
+        data = csv_data.to_numpy(dtype=float)
+    except ValueError:
+        print(f"Error converting data to float in {datafile}. Skipping this file.")
+        return [], []
+    
+    
+    for ch in range(1, data.shape[1]):
+        if ch - 1 in skip_ch: # -1 because first column is time
+            continue
+        
+        if t_to_sec_factor is not None:
+            print(f"Time unit factor is set to {t_to_sec_factor}. - Ignoring csv header")
+        else:
+
+            if "(ms)" in units[0]:
+                t_sec_f = 1e3
+            elif "(us)" in units[0]:
+                t_sec_f = 1e6
+            elif "(s)" in units[0]:
+                t_sec_f = 1
+            else:
+                warnings.warn("Time unit not detected. Assuming milliseconds")
+                t_sec_f = 1e3
+
+        sig = Signal(data[:, 0]/t_sec_f, data[:, ch], t_unit= "s", d_unit=units[ch])
+
+        channels.append(sig)
+    return channels, units
+    
+def save_channels_labview_format(channels: list[Signal], path: pathlib.Path):
+    filename = "[AVERAGED]" 
+
+    data_array = channels[0].to_array() 
+    units = [f'({channels[0].t_unit})', channels[0].d_unit]
+    headers = ["Time", "Avg CH0"]
+
+    if len(channels) > 1:
+        for i in range(1, len(channels)):
+            if (channels[i].time != channels[0].time).any():
+                warnings.warn("The time vectors of the signals are not the same. Using the first one...")
+
+
+            data_array = np.hstack((data_array,channels[i].data.reshape(-1, 1)))
+            units.append(channels[i].d_unit)
+            headers.append(f"Avg CH{i}")
+
+    with open(path / f"{filename}.csv", 'w') as f:
+        f.write(f"{','.join(headers)}\n")
+        f.write(f"{','.join(units)}\n")
+        for row in data_array:
+            f.write(f"{','.join([str(x) for x in row])}\n")
+    print(f"Saved averaged signals to {path / f'{filename}.csv'}")
+    return path / filename
+
 
 
 def average_signals(initial_signals: list[list[Signal]], plot_outliers=True, tx_ch: int | None=None) -> list[Signal]:
