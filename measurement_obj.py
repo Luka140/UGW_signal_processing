@@ -168,18 +168,19 @@ class Measurement:
                  f"{distance / (time_shift_peaks+1e-14):.2f} (peaks) - "
                  f"{distance / (time_shift_waveform_start+1e-14):.2f} (Initial threshold)")
 
-            a0_tag, s0_tag, sh0_tag = self.dispersion_curves.get_fundamental_mode_tags()
+            if self.dispersion_curves is not None:
+                a0_tag, s0_tag, sh0_tag = self.dispersion_curves.get_fundamental_mode_tags()
 
-            signal_names = ["Base signal", "Comparison signal"]
-            for i, sig in enumerate([base_signal, comparison_signal]):
+                signal_names = ["Base signal", "Comparison signal"]
+                for i, sig in enumerate([base_signal, comparison_signal]):
 
-                print(f"\nCharacteristic frequency {signal_names[i]}: {sig.characteristic_frequency/10**3:.2f} kHz")
-                base_vg_a0, base_vg_s0, base_vg_sh0 = self.dispersion_curves.get_value((a0_tag, s0_tag, sh0_tag), sig.characteristic_frequency/10**3, target_header="Energy velocity")
-                print(f"Energy velocity dispersion curve - A0/B0: {base_vg_a0:.2f} m/ms, S0/B1: {base_vg_s0:.2f} m/ms, {sh0_tag}: {base_vg_sh0:.2f} m/ms")
+                    print(f"\nCharacteristic frequency {signal_names[i]}: {sig.characteristic_frequency/10**3:.2f} kHz")
+                    base_vg_a0, base_vg_s0, base_vg_sh0 = self.dispersion_curves.get_value((a0_tag, s0_tag, sh0_tag), sig.characteristic_frequency/10**3, target_header="Energy velocity")
+                    print(f"Energy velocity dispersion curve - A0/B0: {base_vg_a0:.2f} m/ms, S0/B1: {base_vg_s0:.2f} m/ms, {sh0_tag}: {base_vg_sh0:.2f} m/ms")
 
-            # print(f"\nCharacteristic frequency comp signal: {comparison_signal.characteristic_frequency/10**3:.2f} kHz")
-            # comp_vg_a0, comp_vg_s0, comp_vg_sh0 = self.dispersion_curves.get_value(("A0", "S0", sh0_tag), comparison_signal.characteristic_frequency/10**3, target_header="Energy velocity")
-            # print(f"Energy velocity dispersion curve - A0: {comp_vg_a0:.2f} m/ms, S0: {comp_vg_s0:.2f} m/ms, {sh0_tag}: {comp_vg_sh0:.2f} m/ms")
+                # print(f"\nCharacteristic frequency comp signal: {comparison_signal.characteristic_frequency/10**3:.2f} kHz")
+                # comp_vg_a0, comp_vg_s0, comp_vg_sh0 = self.dispersion_curves.get_value(("A0", "S0", sh0_tag), comparison_signal.characteristic_frequency/10**3, target_header="Energy velocity")
+                # print(f"Energy velocity dispersion curve - A0: {comp_vg_a0:.2f} m/ms, S0: {comp_vg_s0:.2f} m/ms, {sh0_tag}: {comp_vg_sh0:.2f} m/ms")
 
             if plot_correlation:
                 # Plot shifted signals
