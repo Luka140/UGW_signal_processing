@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.fft as fft
 import scipy.signal as spsignal
+import scipy.signal.windows as spwindow
 import matplotlib.pyplot as plt
 from typing import Iterable, Union, List
 
@@ -225,6 +226,12 @@ class Signal:
         self._plot_helper(self, axtime, axfrequency, tlim)
         plt.show()
 
+    def get_time_reversed_section(self, t_lower, t_upper):
+        trimmed_signal = self.get_trimmed_signal(t_lower, t_upper)
+        windowed_data = spwindow.tukey(len(trimmed_signal.data), alpha=0.1) * trimmed_signal.data
+        zero_start_time = trimmed_signal.time - trimmed_signal.time[0]
+        return Signal(zero_start_time, windowed_data[::-1], trimmed_signal.t_unit, trimmed_signal.d_unit)
+
     @staticmethod
     def _plot_helper(signal: "Signal", axt, axf, tlim=None, label="", colors=None, plot_envelope=True, plot_waveform=True, plot_peak_width=False):
 
@@ -249,7 +256,7 @@ class Signal:
         
         # -------- Plot start time used for FFT
         axt.plot([signal.time[signal.fft_start_index], signal.time[signal.fft_start_index]], 
-                 [-np.max(signal.peak_amplitude), np.max(signal.peak_amplitude)], '-.', color='black', label=f'{label} FFT start time')
+                 [-np.max(signal.peak_amplitude), np.max(signal.peak_amplitude)], '-.', color='black', label=f'{label} FFT start time', alpha=0.5)
         axt.set(xlabel=f'Time ({signal.t_unit})', ylabel=f'{label} Signal ({signal.d_unit})')
         axt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
 
@@ -268,6 +275,7 @@ class Signal:
         axf.set(xlim=(0, 2 * signal.fft_frequency[np.argmax(signal.fft_magnitude)]))
         # axf.xlim
         return axt, axf
+    
     
 class SignalPlot:
     def __init__(self):
@@ -435,7 +443,7 @@ class SignalPlot:
         self.click_markers.clear()
         
         # Create marker style based on the signal
-        marker_color = closest_signal_data['colors'][0] if closest_signal_data['colors'] else 'green'
+        marker_color = closest_signal_data['colors'][0] if closest_signal_data['colors'] else 'red'
         
         # Add vertical line marker
         line_style = {
